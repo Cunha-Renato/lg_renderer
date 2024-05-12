@@ -1,4 +1,4 @@
-use std::{ffi::CString, hash::Hash};
+use std::{ffi::CString, hash::Hash, mem::size_of};
 
 use glutin::{display::GlDisplay, surface::GlSurface};
 use crate::{gl_check, renderer::{lg_shader::Shader, lg_texture::Texture, lg_uniform::LgUniform, lg_vertex::GlVertex}, StdError};
@@ -49,18 +49,39 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         T: Texture,
         S: Shader,
     {
-        gl_check!(gl::ClearColor(0.5, 0.1, 0.2, 1.0));
-        gl_check!(gl::Clear(gl::COLOR_BUFFER_BIT));
-
         self.storage.set_vao(mesh.0.clone());
         self.storage.set_program(shaders.0.clone(), shaders.1)?;
-
+        for (key, uniforms) in &ubos {
+            for uniform in *uniforms {
+                self.storage.set_uniform(key.clone(), uniform);
+            }
+        }
         if let Some(texture) = &texture {
             self.storage.set_texture(texture.0.clone(), texture.1)            
         }
+
+        let vao = self.storage.vaos.get(&mesh.0).unwrap();
+        let program = self.storage.programs.get(&shaders.0).unwrap();
+
+        program.use_prog();
+        vao.bind();
+        vao.vertex_buffer().bind();
+
+        let infos = V::gl_info();
+        for info in infos {
+            let location = program.get_attrib_location(&info.0)?;
+
+            vao.set_attribute::<V>(location, info.1, 0);
+        }
+
+        vao.vertex_buffer().set_data(mesh.1, gl::STATIC_DRAW);
+        vao.index_buffer().bind();
+        vao.index_buffer().set_data(mesh.2, gl::STATIC_DRAW);
+
         for (key, uniforms) in ubos {
             for uniform in uniforms {
-                let ubo = self.storage.set_uniform(key.clone(), uniform);
+                let buffer_id = self.storage.ubos.get(&key).unwrap();
+                let ubo = self.storage.buffers.get(buffer_id).unwrap();
                 
                 ubo.bind();
                 ubo.bind_base(uniform.binding());
@@ -72,23 +93,6 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
                 ubo.unbind();
             }
         }
-        
-        let vao = self.storage.vaos.get(&mesh.0).unwrap();
-        let program = self.storage.programs.get(&shaders.0).unwrap();
-
-        vao.bind();
-
-        let infos = V::gl_info();
-        for info in infos {
-            let location = program.get_attrib_location(&info.0)?;
-            vao.set_attribute::<V>(location, info.1, info.2);
-        }
-
-        vao.vertex_buffer().bind();
-        vao.vertex_buffer().set_data(mesh.1, gl::STATIC_DRAW);
-        vao.index_buffer().bind();
-        vao.index_buffer().set_data(mesh.2, gl::STATIC_DRAW);
-        program.use_prog();
 
         if let Some(texture) = texture {
             self.storage.textures.get(&texture.0).unwrap().bind();
@@ -102,9 +106,16 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         ));
 
         vao.unbind();
-
-        self.specs.gl_surface.swap_buffers(&self.specs.gl_context)?;
             
+        Ok(())
+    }
+    pub(crate) unsafe fn begin(&self) {
+        gl_check!(gl::ClearColor(0.5, 0.1, 0.2, 1.0));
+        gl_check!(gl::Clear(gl::COLOR_BUFFER_BIT));
+    }
+    pub(crate) unsafe fn end(&self) -> Result<(), StdError>{
+        self.specs.gl_surface.swap_buffers(&self.specs.gl_context)?;
+        
         Ok(())
     }
     pub(crate) unsafe fn resize(&self, new_size: (u32, u32)) -> Result<(), StdError> {

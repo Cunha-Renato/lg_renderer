@@ -2,9 +2,7 @@
 
 use std::hash::Hash;
 
-use winit::event_loop::EventLoop;
-
-use crate::{opengl::{gl_init::init_opengl, gl_renderer::GlRenderer, GlSpecs}, StdError};
+use crate::{opengl::{gl_init::init_opengl, gl_renderer::GlRenderer}, StdError};
 use self::{lg_shader::Shader, lg_texture::Texture, lg_uniform::LgUniform, lg_vertex::GlVertex};
 
 pub mod lg_vertex;
@@ -55,6 +53,20 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
             },
             RendererAPI::VULKAN(_) => todo!(),
         }
+        
+        Ok(())
+    }
+    pub unsafe fn begin(&self) {
+        match &self.api {
+            RendererAPI::OPEN_GL(gl) => gl.begin(),
+            _ => (),
+        }
+    }
+    pub unsafe fn end(&self) -> Result<(), StdError> {
+        match &self.api {
+            RendererAPI::OPEN_GL(gl) => gl.end()?,
+            _ => (),
+        };
         
         Ok(())
     }

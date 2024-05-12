@@ -1,4 +1,4 @@
-use std::{collections::{hash_map::Entry, HashMap}, hash::Hash};
+use std::{collections::HashMap, hash::Hash};
 
 use crate::{renderer::{lg_shader::Shader, lg_texture::Texture, lg_uniform::LgUniform}, StdError};
 
@@ -6,7 +6,7 @@ use super::{gl_buffer::GlBuffer, gl_program::GlProgram, gl_shader::GlShader, gl_
 
 #[derive(Default)]
 pub(crate) struct GlStorage<K: Eq + PartialEq + Hash> {
-    buffers: HashMap<gl::types::GLuint, GlBuffer>,
+    pub(crate) buffers: HashMap<gl::types::GLuint, GlBuffer>,
     shaders: HashMap<gl::types::GLuint, GlShader>,
 
     pub(crate) vaos: HashMap<K, GlVertexArray>,
@@ -40,7 +40,7 @@ impl<K: Eq + PartialEq + Hash> GlStorage<K> {
             gl_tex
         });
     }
-    pub(crate) unsafe fn set_uniform(&mut self, key: K, uniform: &LgUniform) -> &GlBuffer {
+    pub(crate) unsafe fn set_uniform(&mut self, key: K, uniform: &LgUniform) {
         let usage = match uniform.u_type() {
             crate::renderer::lg_uniform::LgUniformType::STRUCT => gl::UNIFORM_BUFFER,
             crate::renderer::lg_uniform::LgUniformType::STORAGE_BUFFER => gl::SHADER_STORAGE_BUFFER,
@@ -48,15 +48,13 @@ impl<K: Eq + PartialEq + Hash> GlStorage<K> {
         };
 
         // FIX_ME: Ugly ass code.
-        let ubo = self.ubos.entry(key).or_insert_with(|| {
+        self.ubos.entry(key).or_insert_with(|| {
             let buffer = GlBuffer::new(usage);
             let buffer_id = buffer.id();
             self.buffers.entry(buffer_id).or_insert(buffer);
-
+            
             buffer_id
         });
-        
-        self.buffers.get(ubo).unwrap()
     }
     
     pub(crate) unsafe fn set_buffer(&mut self, buffer: GlBuffer) {
