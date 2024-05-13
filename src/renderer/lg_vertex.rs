@@ -1,5 +1,5 @@
 pub trait GlVertex {
-    /// Name, components, offset
+    /// (name, components, offset)
     unsafe fn gl_info() -> Vec<(String, i32, i32)>;
 }
 

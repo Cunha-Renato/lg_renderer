@@ -1,8 +1,7 @@
 use std::ffi::CString;
-
 use crate::{gl_check, StdError};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub(crate) struct GlShader {
     id: gl::types::GLuint,
 }
@@ -45,11 +44,6 @@ impl GlShader {
     }
     pub(crate) fn id(&self) -> gl::types::GLuint {
         self.id
-    }
-}
-impl PartialEq for GlShader {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
     }
 }
 impl Drop for GlShader {

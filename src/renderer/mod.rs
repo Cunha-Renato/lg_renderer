@@ -34,7 +34,7 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
         &mut self, 
         mesh: (K, &[V], &[u32]), 
         texture: Option<(K, &T)>,
-        shaders: (K, &[&S]),
+        shaders: (K, &[(K, &S)]),
         ubos: Vec<(K, &[LgUniform])>,
     ) -> Result<(), StdError>
     where 
@@ -59,13 +59,13 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
     pub unsafe fn begin(&self) {
         match &self.api {
             RendererAPI::OPEN_GL(gl) => gl.begin(),
-            _ => (),
+            RendererAPI::VULKAN(_) => todo!()
         }
     }
     pub unsafe fn end(&self) -> Result<(), StdError> {
         match &self.api {
             RendererAPI::OPEN_GL(gl) => gl.end()?,
-            _ => (),
+            RendererAPI::VULKAN(_) => todo!()
         };
         
         Ok(())

@@ -1,4 +1,4 @@
-use std::{ffi::CString, hash::Hash, mem::size_of};
+use std::{ffi::CString, hash::Hash};
 
 use glutin::{display::GlDisplay, surface::GlSurface};
 use crate::{gl_check, renderer::{lg_shader::Shader, lg_texture::Texture, lg_uniform::LgUniform, lg_vertex::GlVertex}, StdError};
@@ -40,7 +40,7 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         &mut self, 
         mesh: (K, &[V], &[u32]), 
         texture: Option<(K, &T)>,
-        shaders: (K, &[&S]),
+        shaders: (K, &[(K, &S)]),
         ubos: Vec<(K, &[LgUniform])>,
     ) -> Result<(), StdError>
     where 
@@ -106,6 +106,7 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         ));
 
         vao.unbind();
+        program.unuse();
             
         Ok(())
     }

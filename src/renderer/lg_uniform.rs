@@ -53,10 +53,10 @@ impl LgUniform {
 pub trait GlUniform: 'static
 {
     fn size(&self) -> usize;
+    fn as_any(&self) -> &dyn Any;
     fn as_c_void(&self) -> *const std::ffi::c_void {
         let ptr = self as *const Self;
         
         ptr as *const std::ffi::c_void
     }
-    fn as_any(&self) -> &dyn Any;
 }

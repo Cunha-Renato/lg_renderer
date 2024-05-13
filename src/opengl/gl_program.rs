@@ -2,7 +2,6 @@ use std::ffi::CString;
 
 use crate::{gl_check, StdError};
 
-
 #[derive(Debug, Default)]
 pub struct GlProgram {
     id: gl::types::GLuint,

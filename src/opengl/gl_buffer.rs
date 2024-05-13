@@ -1,8 +1,8 @@
-use std::ffi::c_void;
+use std::{ffi::c_void, hash::Hash};
 
 use crate::gl_check;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct GlBuffer {
     id: gl::types::GLuint,
     target: gl::types::GLuint
@@ -63,6 +63,11 @@ impl GlBuffer {
     }
     pub fn target(&self) -> gl::types::GLuint {
         self.target
+    }
+}
+impl Hash for GlBuffer {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
     }
 }
 impl Drop for GlBuffer {
