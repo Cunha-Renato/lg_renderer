@@ -78,4 +78,16 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
         
         Ok(())
     }
+    pub unsafe fn read_uniform_buffer<T: Clone>(&self, key: K, index: usize) -> Result<T, StdError> {
+        match &self.api {
+            RendererAPI::OPEN_GL(gl) => gl.read_uniform::<T>(key, index),
+            RendererAPI::VULKAN(_) => todo!(),
+        }
+    }
+    pub unsafe fn set_uniform_buffer(&self, key: K, index: usize, uniform: &LgUniform) -> Result<(), StdError> {
+        match &self.api {
+            RendererAPI::OPEN_GL(gl) => gl.set_uniform(key, index, uniform),
+            RendererAPI::VULKAN(_) => todo!(),
+        }
+    }
 }

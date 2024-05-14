@@ -13,6 +13,7 @@ pub struct LgUniform {
     u_type: LgUniformType,
     binding: usize,
     set: usize,
+    pub update_data: bool,
     pub data: Rc<dyn GlUniform>,
 }
 impl LgUniform {
@@ -21,6 +22,7 @@ impl LgUniform {
         u_type: LgUniformType, 
         binding: usize,
         set: usize,
+        update_data: bool,
         data: T
     ) -> Self 
     {
@@ -31,6 +33,7 @@ impl LgUniform {
             u_type,
             binding,
             set,
+            update_data,
             data,
         }
     }
@@ -48,6 +51,10 @@ impl LgUniform {
     }
     pub fn data(&self) -> *const std::ffi::c_void {
         self.data.as_c_void()
+    }
+    pub fn set_data<T: 'static + GlUniform>(&mut self, data: T) {
+        let data = Rc::new(data) as Rc<dyn GlUniform>;
+        self.data = data;
     }
 }
 pub trait GlUniform: 'static

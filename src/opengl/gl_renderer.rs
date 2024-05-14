@@ -52,9 +52,7 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         self.storage.set_vao(mesh.0.clone());
         self.storage.set_program(shaders.0.clone(), shaders.1)?;
         for (key, uniforms) in &ubos {
-            for uniform in *uniforms {
-                self.storage.set_uniform(key.clone(), uniform);
-            }
+            self.storage.set_uniforms(key.clone(), *uniforms);
         }
         if let Some(texture) = &texture {
             self.storage.set_texture(texture.0.clone(), texture.1)            
@@ -79,17 +77,19 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         vao.index_buffer().set_data(mesh.2, gl::STATIC_DRAW);
 
         for (key, uniforms) in ubos {
-            for uniform in uniforms {
-                let buffer_id = self.storage.ubos.get(&key).unwrap();
-                let ubo = self.storage.buffers.get(buffer_id).unwrap();
+            for i in 0..uniforms.len() {
+                let buffer_ids = self.storage.ubos.get(&key).unwrap();
+                let ubo = self.storage.buffers.get(&buffer_ids[i]).unwrap();
                 
                 ubo.bind();
-                ubo.bind_base(uniform.binding());
-                ubo.set_data_full(
-                    uniform.data.size(), 
-                    uniform.data(), 
-                    gl::STATIC_DRAW
-                );
+                ubo.bind_base(uniforms[i].binding());
+                if uniforms[i].update_data {
+                    ubo.set_data_full(
+                        uniforms[i].data.size(), 
+                        uniforms[i].data(), 
+                        gl::STATIC_DRAW
+                    );
+                }
                 ubo.unbind();
             }
         }
@@ -118,6 +118,42 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         self.specs.gl_surface.swap_buffers(&self.specs.gl_context)?;
         
         Ok(())
+    }
+    pub(crate) unsafe fn read_uniform<T: Clone>(&self, key: K, index: usize) -> Result<T, StdError> {
+        gl_check!(gl::MemoryBarrier(gl::ALL_BARRIER_BITS));
+        
+        if let Some(buffer_id) = self.storage.ubos.get(&key) {
+            if let Some(ubo) = self.storage.buffers.get(&buffer_id[index]) {
+                ubo.bind();
+                let data = ubo.map(gl::READ_ONLY) as *const T;
+                let result = (*data).clone();
+                ubo.unmap();
+                ubo.unbind();
+                
+                return Ok(result);
+            }
+        }
+        
+        Err("Couldn't find buffer! (OpenGL)".into())
+    }
+    pub(crate) unsafe fn set_uniform(&self, key: K, index: usize, uniform: &LgUniform) -> Result<(), StdError> {
+        gl_check!(gl::MemoryBarrier(gl::ALL_BARRIER_BITS));
+        
+        if let Some(buffer_id) = self.storage.ubos.get(&key) {
+            if let Some(ubo) = self.storage.buffers.get(&buffer_id[index]) {
+                ubo.bind();
+                ubo.set_data_full(
+                    uniform.data.size(), 
+                    uniform.data(), 
+                    gl::STATIC_DRAW
+                );
+                ubo.unbind();
+                
+                return Ok(());
+            }
+        }
+        
+        Err("Couldn't find buffer! (OpenGL)".into())
     }
     pub(crate) unsafe fn resize(&self, new_size: (u32, u32)) -> Result<(), StdError> {
         self.specs.gl_surface.resize(

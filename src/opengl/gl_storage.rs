@@ -10,7 +10,7 @@ pub(crate) struct GlStorage<K: Eq + PartialEq + Hash> {
     pub(crate) vaos: HashMap<K, GlVertexArray>,
     pub(crate) programs: HashMap<K, GlProgram>,
     pub(crate) textures: HashMap<K, GlTexture>,
-    pub(crate) ubos: HashMap<K, gl::types::GLuint>,
+    pub(crate) ubos: HashMap<K, Vec<gl::types::GLuint>>,
 }
 impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
     pub(crate) unsafe fn set_vao(&mut self, key: K) {
@@ -38,20 +38,32 @@ impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
             gl_tex
         });
     }
-    pub(crate) unsafe fn set_uniform(&mut self, key: K, uniform: &LgUniform) {
-        let usage = match uniform.u_type() {
-            crate::renderer::lg_uniform::LgUniformType::STRUCT => gl::UNIFORM_BUFFER,
-            crate::renderer::lg_uniform::LgUniformType::STORAGE_BUFFER => gl::SHADER_STORAGE_BUFFER,
-            crate::renderer::lg_uniform::LgUniformType::COMBINED_IMAGE_SAMPLER => gl::SAMPLER_2D,
-        };
-
+    pub(crate) unsafe fn set_uniforms(&mut self, key: K, uniforms: &[LgUniform]) {
         // FIX_ME: Ugly ass code.
         self.ubos.entry(key).or_insert_with(|| {
-            let buffer = GlBuffer::new(usage);
-            let buffer_id = buffer.id();
-            self.buffers.entry(buffer_id).or_insert(buffer);
-            
-            buffer_id
+            let mut buffer_ids = Vec::new();
+            for uniform in uniforms {
+                let usage = match uniform.u_type() {
+                    crate::renderer::lg_uniform::LgUniformType::STRUCT => gl::UNIFORM_BUFFER,
+                    crate::renderer::lg_uniform::LgUniformType::STORAGE_BUFFER => gl::SHADER_STORAGE_BUFFER,
+                    crate::renderer::lg_uniform::LgUniformType::COMBINED_IMAGE_SAMPLER => gl::SAMPLER_2D,
+                };
+
+                let buffer = GlBuffer::new(usage);
+                buffer_ids.push(buffer.id());
+                
+                buffer.bind();
+                buffer.bind_base(uniform.binding());
+                buffer.set_data_full(
+                    uniform.data.size(), 
+                    uniform.data(), 
+                    gl::STATIC_DRAW
+                );
+                buffer.unbind();
+                self.buffers.entry(buffer.id()).or_insert(buffer);
+            }
+                
+            buffer_ids
         });
     }
     
