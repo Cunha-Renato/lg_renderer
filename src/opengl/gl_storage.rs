@@ -4,13 +4,12 @@ use super::{gl_buffer::GlBuffer, gl_program::GlProgram, gl_shader::GlShader, gl_
 
 #[derive(Default)]
 pub(crate) struct GlStorage<K: Eq + PartialEq + Hash> {
-    pub(crate) buffers: HashMap<gl::types::GLuint, GlBuffer>,
+    pub(crate) buffers: HashMap<K, GlBuffer>,
     shaders: HashMap<K, GlShader>,
 
     pub(crate) vaos: HashMap<K, GlVertexArray>,
     pub(crate) programs: HashMap<K, GlProgram>,
     pub(crate) textures: HashMap<K, GlTexture>,
-    pub(crate) ubos: HashMap<K, Vec<gl::types::GLuint>>,
 }
 impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
     pub(crate) unsafe fn set_vao(&mut self, key: K) {
@@ -38,38 +37,31 @@ impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
             gl_tex
         });
     }
-    pub(crate) unsafe fn set_uniforms(&mut self, key: K, uniforms: &[LgUniform]) {
-        // FIX_ME: Ugly ass code.
-        self.ubos.entry(key).or_insert_with(|| {
-            let mut buffer_ids = Vec::new();
-            for uniform in uniforms {
-                let usage = match uniform.u_type() {
+    pub(crate) unsafe fn set_uniforms(&mut self, uniforms: &[(K, LgUniform)]) {
+        for (key, ubo) in uniforms {
+            self.buffers.entry(key.clone()).or_insert_with(|| {
+                let usage = match ubo.u_type() {
                     crate::renderer::lg_uniform::LgUniformType::STRUCT => gl::UNIFORM_BUFFER,
                     crate::renderer::lg_uniform::LgUniformType::STORAGE_BUFFER => gl::SHADER_STORAGE_BUFFER,
                     crate::renderer::lg_uniform::LgUniformType::COMBINED_IMAGE_SAMPLER => gl::SAMPLER_2D,
                 };
-
+                
                 let buffer = GlBuffer::new(usage);
-                buffer_ids.push(buffer.id());
                 
                 buffer.bind();
-                buffer.bind_base(uniform.binding());
+                buffer.bind_base(ubo.binding());
                 buffer.set_data_full(
-                    uniform.data.size(), 
-                    uniform.data(), 
-                    gl::STATIC_DRAW
+                    ubo.data.size(), 
+                    ubo.data(),
+                    gl::STATIC_DRAW,
                 );
                 buffer.unbind();
-                self.buffers.entry(buffer.id()).or_insert(buffer);
-            }
                 
-            buffer_ids
-        });
+                buffer
+            });
+        }
     }
     
-    pub(crate) unsafe fn set_buffer(&mut self, buffer: GlBuffer) {
-        self.buffers.entry(buffer.id()).or_insert(buffer);
-    }
     unsafe fn set_shaders<S: Shader>(&mut self, shaders: &[(K, &S)]) -> Result<Vec<gl::types::GLuint>, StdError> {
         let mut result = Vec::new();
         for s in shaders {

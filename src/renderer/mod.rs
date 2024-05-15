@@ -8,6 +8,7 @@ use self::{lg_shader::Shader, lg_texture::Texture, lg_uniform::LgUniform, lg_ver
 pub mod lg_vertex;
 pub mod lg_texture;
 pub mod lg_shader;
+pub mod lg_buffer;
 pub mod lg_uniform;
 
 enum RendererAPI<K: Eq + PartialEq + Hash> {
@@ -35,7 +36,7 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
         mesh: (K, &[V], &[u32]), 
         texture: Option<(K, &T)>,
         shaders: (K, &[(K, &S)]),
-        ubos: Vec<(K, &[LgUniform])>,
+        ubos: Vec<(K, &LgUniform)>,
     ) -> Result<(), StdError>
     where 
         V: GlVertex,
