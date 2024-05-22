@@ -1,12 +1,11 @@
-use std::any::Any;
-
 pub trait LgBuffer {
-    fn get_data(&self) -> *const std::ffi::c_void;
-    fn set_data<D: LgBufferData>(&mut self, data: D);
+    fn data_size(&self) -> usize;
+    fn get_raw_data(&self) -> *const std::ffi::c_void;
+    fn set_data(&mut self, data: impl LgBufferData);
 }
 pub trait LgBufferData: 'static {
     fn size(&self) -> usize;
-    fn as_any(&self) -> &dyn Any;
+    fn as_any(&self) -> &dyn std::any::Any;
     fn as_c_void(&self) -> *const std::ffi::c_void {
         let ptr = self as *const Self;
         

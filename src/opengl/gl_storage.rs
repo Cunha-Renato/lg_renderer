@@ -1,6 +1,7 @@
 use std::{collections::HashMap, hash::Hash};
 use crate::{renderer::{lg_shader::Shader, lg_texture::Texture, lg_uniform::LgUniform}, StdError};
 use super::{gl_buffer::GlBuffer, gl_program::GlProgram, gl_shader::GlShader, gl_texture::GlTexture, gl_vertex_array::GlVertexArray};
+use crate::renderer::lg_buffer::LgBuffer;
 
 #[derive(Default)]
 pub(crate) struct GlStorage<K: Eq + PartialEq + Hash> {
@@ -37,7 +38,7 @@ impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
             gl_tex
         });
     }
-    pub(crate) unsafe fn set_uniforms(&mut self, uniforms: &[(K, LgUniform)]) {
+    pub(crate) unsafe fn set_uniforms(&mut self, uniforms: &[(K, &impl LgUniform)]) {
         for (key, ubo) in uniforms {
             self.buffers.entry(key.clone()).or_insert_with(|| {
                 let usage = match ubo.u_type() {
@@ -51,8 +52,8 @@ impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
                 buffer.bind();
                 buffer.bind_base(ubo.binding());
                 buffer.set_data_full(
-                    ubo.data.size(), 
-                    ubo.data(),
+                    ubo.data_size(), 
+                    ubo.get_raw_data(),
                     gl::STATIC_DRAW,
                 );
                 buffer.unbind();
