@@ -3,12 +3,11 @@
 use std::hash::Hash;
 
 use crate::{opengl::{gl_init::init_opengl, gl_renderer::GlRenderer}, StdError};
-use self::{lg_buffer::LgBufferData, lg_shader::Shader, lg_texture::Texture, lg_uniform::LgUniform, lg_vertex::GlVertex};
+use self::{lg_shader::LgShader, lg_texture::LgTexture, lg_uniform::LgUniform, lg_vertex::GlVertex};
 
 pub mod lg_vertex;
 pub mod lg_texture;
 pub mod lg_shader;
-pub mod lg_buffer;
 pub mod lg_uniform;
 
 enum RendererAPI<K: Eq + PartialEq + Hash> {
@@ -40,8 +39,8 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
     ) -> Result<(), StdError>
     where 
         V: GlVertex,
-        T: Texture,
-        S: Shader,
+        T: LgTexture,
+        S: LgShader,
     {
         match &mut self.api {
             RendererAPI::OPEN_GL(api) => {
@@ -85,9 +84,9 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
             RendererAPI::VULKAN(_) => todo!(),
         }
     }
-    pub unsafe fn set_uniform_buffer(&self, key: K, data: &impl LgBufferData) -> Result<(), StdError> {
+    pub unsafe fn set_uniform_buffer_data(&self, key: K, data: &Vec<u8>) -> Result<(), StdError> {
         match &self.api {
-            RendererAPI::OPEN_GL(gl) => gl.set_buffer(key, data),
+            RendererAPI::OPEN_GL(gl) => gl.set_buffer_data(key, data),
             RendererAPI::VULKAN(_) => todo!(),
         }
     }

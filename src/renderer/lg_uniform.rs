@@ -1,5 +1,3 @@
-use super::lg_buffer::LgBufferData;
-
 #[derive(Clone, Copy, Debug)]
 pub enum LgUniformType {
     STRUCT,
@@ -13,6 +11,6 @@ pub trait LgUniform {
     fn set(&self) -> usize;
     fn data_size(&self) -> usize;
     fn get_raw_data(&self) -> *const std::ffi::c_void;
-    fn set_data(&mut self, data: impl LgBufferData);
+    fn set_data<D>(&mut self, data: D);
     fn update_data(&self) -> bool;
 }

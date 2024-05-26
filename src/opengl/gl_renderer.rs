@@ -1,9 +1,8 @@
 use std::{ffi::CString, hash::Hash};
 
 use glutin::{display::GlDisplay, surface::GlSurface};
-use crate::{gl_check, renderer::{lg_buffer::LgBufferData, lg_shader::Shader, lg_texture::Texture, lg_uniform::LgUniform, lg_vertex::GlVertex}, StdError};
+use crate::{gl_check, renderer::{lg_shader::LgShader, lg_texture::LgTexture, lg_uniform::LgUniform, lg_vertex::GlVertex}, StdError};
 use super::{gl_storage::GlStorage, GlSpecs};
-use crate::renderer::lg_buffer::LgBuffer;
 
 pub(crate) struct GlRenderer<K: Eq + PartialEq + Hash> {
     specs: GlSpecs,
@@ -47,8 +46,8 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
     where 
         K: Clone,
         V: GlVertex,
-        T: Texture,
-        S: Shader,
+        T: LgTexture,
+        S: LgShader,
     {
         self.storage.set_vao(mesh.0.clone());
         self.storage.set_program(shaders.0.clone(), shaders.1)?;
@@ -130,14 +129,17 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         
         Err("Couldn't find buffer! (OpenGL)".into())
     }
-    pub(crate) unsafe fn set_buffer(&self, key: K, data: &impl LgBufferData) -> Result<(), StdError> {
+    pub(crate) unsafe fn set_buffer_data(&self, key: K, data: &Vec<u8>) -> Result<(), StdError> {
         gl_check!(gl::MemoryBarrier(gl::ALL_BARRIER_BITS));
         
         if let Some(buffer) = self.storage.buffers.get(&key) {
+            let size = data.len() * std::mem::size_of::<u8>();
+            let data = data.as_ptr() as *const std::ffi::c_void;
+
             buffer.bind();
             buffer.set_data_full(
-                data.size(), 
-                data.as_c_void(), 
+                size, 
+                data,
                 gl::STATIC_DRAW
             );
             buffer.unbind();

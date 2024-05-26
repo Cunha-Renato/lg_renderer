@@ -23,7 +23,7 @@ impl ShaderStage {
     }
 }
 
-pub trait Shader {
+pub trait LgShader {
     fn bytes(&self) -> &[u8];
     fn src_code(&self) -> &str;
     fn stage(&self) -> ShaderStage;

@@ -1,4 +1,4 @@
-use crate::{gl_check, renderer::lg_texture::{Texture, TextureFormat, TextureType}};
+use crate::{gl_check, renderer::lg_texture::{LgTexture, TextureFormat, TextureType}};
 
 #[derive(Debug, Default)]
 pub(crate) struct GlTexture {
@@ -17,7 +17,7 @@ impl GlTexture {
     pub(crate) unsafe fn unbind(&self) {
         gl_check!(gl::BindTexture(gl::TEXTURE_2D, 0));
     }
-    pub(crate) unsafe fn load(&self, texture: &impl Texture) {
+    pub(crate) unsafe fn load(&self, texture: &impl LgTexture) {
         gl_check!(gl::TexImage2D(
             gl::TEXTURE_2D, 
             0, 
