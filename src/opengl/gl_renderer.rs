@@ -62,16 +62,16 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         program.use_prog();
         vao.bind();
         vao.vertex_buffer().bind();
+        vao.index_buffer().bind();
 
         let infos = V::gl_info();
         for info in infos {
             let location = program.get_attrib_location(&info.0)?;
 
-            vao.set_attribute::<V>(location, info.1, 0);
+            vao.set_attribute::<V>(location, info.1, info.2);
         }
 
         vao.vertex_buffer().set_data(mesh.1, gl::STATIC_DRAW);
-        vao.index_buffer().bind();
         vao.index_buffer().set_data(mesh.2, gl::STATIC_DRAW);
 
         for (key, uniform) in ubos {

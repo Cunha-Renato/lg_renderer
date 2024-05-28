@@ -21,6 +21,14 @@ impl ShaderStage {
             ShaderStage::COMPUTE => gl::COMPUTE_SHADER,
         }
     }
+    pub fn from_u32(val: u32) -> Result<Self, StdError> {
+        Ok(match val {
+            0 => Self::VERTEX,
+            1 => Self::FRAGMENT,
+            2 => Self::COMPUTE,
+            _ => return Err("Failed to convert u32 into ShaderStage!".into())
+        })
+    }
 }
 
 pub trait LgShader {
