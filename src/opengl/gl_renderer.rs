@@ -21,6 +21,8 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
                 gl_check!(gl::DebugMessageCallback(Some(super::debug_callback), std::ptr::null()));
             }
             
+            gl_check!(gl::Enable(gl::DEPTH_TEST));
+            gl_check!(gl::DepthFunc(gl::LESS));
             gl_check!(gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA));
             gl_check!(gl::Enable(gl::BLEND));
             
@@ -107,7 +109,8 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
     }
     pub(crate) unsafe fn begin(&self) {
         gl_check!(gl::ClearColor(0.5, 0.1, 0.2, 1.0));
-        gl_check!(gl::Clear(gl::COLOR_BUFFER_BIT));
+        gl_check!(gl::ClearDepth(1.0));
+        gl_check!(gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT));
     }
     pub(crate) unsafe fn end(&self) -> Result<(), StdError>{
         self.specs.gl_surface.swap_buffers(&self.specs.gl_context)?;
