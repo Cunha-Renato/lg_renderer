@@ -12,8 +12,14 @@ pub(crate) struct GlStorage<K: Eq + PartialEq + Hash> {
     pub(crate) textures: HashMap<K, GlTexture>,
 }
 impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
-    pub(crate) unsafe fn set_vao(&mut self, key: K) {
-        self.vaos.entry(key).or_insert(GlVertexArray::new());
+    pub(crate) unsafe fn set_vao(&mut self, key: K) -> bool {
+        let mut present = true;
+        self.vaos.entry(key).or_insert_with(|| {
+            present = false;
+            GlVertexArray::new()
+        });
+        
+        present
     }
     pub(crate) unsafe fn set_program<S: LgShader>(&mut self, key: K, shaders: &[(K, &S)]) -> Result<(), StdError> {
         let shaders = self.set_shaders(shaders)?;

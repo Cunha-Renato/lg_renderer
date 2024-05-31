@@ -51,7 +51,7 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         T: LgTexture,
         S: LgShader,
     {
-        self.storage.set_vao(mesh.0.clone());
+        let first_vao = self.storage.set_vao(mesh.0.clone());
         self.storage.set_program(shaders.0.clone(), shaders.1)?;
         self.storage.set_uniforms(&ubos);
         if let Some(texture) = &texture {
@@ -66,11 +66,13 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         vao.vertex_buffer().bind();
         vao.index_buffer().bind();
 
-        let infos = V::gl_info();
-        for info in infos {
-            let location = program.get_attrib_location(&info.0)?;
+        if !first_vao {
+            let infos = V::gl_info();
+            for info in infos {
+                let location = program.get_attrib_location(&info.0)?;
 
-            vao.set_attribute::<V>(location, info.1, info.2);
+                vao.set_attribute::<V>(location, info.1, info.2);
+            }
         }
 
         vao.vertex_buffer().set_data(mesh.1, gl::STATIC_DRAW);
