@@ -2,11 +2,13 @@ use std::{ffi::CString, hash::Hash};
 
 use glutin::{display::GlDisplay, surface::GlSurface};
 use crate::{gl_check, renderer::{lg_shader::LgShader, lg_texture::LgTexture, lg_uniform::LgUniform, lg_vertex::GlVertex}, StdError};
-use super::{gl_storage::GlStorage, GlSpecs};
+use super::{gl_buffer::GlBuffer, gl_storage::GlStorage, gl_vertex_array::GlVertexArray, GlSpecs};
 
 pub(crate) struct GlRenderer<K: Eq + PartialEq + Hash> {
     specs: GlSpecs,
     storage: GlStorage<K>,
+    is_instancing: bool,
+    instance_vbo: GlBuffer,
 }
 impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
     pub(crate) fn new(specs: GlSpecs) -> Self {
@@ -32,10 +34,12 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
         }
 
-        Self {
+        unsafe { Self {
             specs,
             storage: GlStorage::default(),
-        }
+            is_instancing: false,
+            instance_vbo: GlBuffer::new(gl::ARRAY_BUFFER),
+        }}
     }
 
     pub(crate) unsafe fn draw<V, T, S>(
@@ -51,7 +55,7 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         T: LgTexture,
         S: LgShader,
     {
-        let first_vao = self.storage.set_vao(mesh.0.clone());
+        let vao_present = self.storage.set_vao(mesh.0.clone());
         self.storage.set_program(shaders.0.clone(), shaders.1)?;
         self.storage.set_uniforms(&ubos);
         if let Some(texture) = &texture {
@@ -63,17 +67,19 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
 
         program.use_prog();
         vao.bind();
-
-        vao.vertex_buffer().bind();
-        vao.vertex_buffer().set_data(mesh.1, gl::DYNAMIC_DRAW);
-
         vao.index_buffer().bind();
-        vao.index_buffer().set_data(mesh.2, gl::DYNAMIC_DRAW);
+        vao.vertex_buffer().bind();
 
-        if !first_vao {
-            let infos = V::gl_info();
-            for info in infos {
-                vao.set_attribute::<V>(info.0, info.1, info.2);
+        if !vao_present {
+            vao.index_buffer().set_data(mesh.2, gl::STATIC_DRAW);
+
+            let layout = V::gl_info();
+            let stride = std::mem::size_of::<V>();
+            let vertex_data = mesh.1.align_to::<u8>().1;
+
+            vao.vertex_buffer().set_data(vertex_data, gl::STATIC_DRAW);
+            for info in layout {
+                vao.set_attribute(info.0, info.1, stride, info.2);
             }
         }
 
@@ -102,10 +108,102 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
             gl::UNSIGNED_INT,
             std::ptr::null(),
         ));
-
+        
         vao.unbind();
         program.unuse();
+
+        Ok(())
+    }
+    pub(crate) unsafe fn draw_instanced<V, I, T, S>(
+        &mut self, 
+        mesh: (K, &[V], &[u32]), 
+        texture: Option<(K, &T)>,
+        shaders: (K, &[(K, &S)]),
+        ubos: Vec<(K, &impl LgUniform)>,
+        
+        instance_data: &[I],
+    ) -> Result<(), StdError>
+    where 
+        K: Clone,
+        V: GlVertex,
+        I: GlVertex,
+        T: LgTexture,
+        S: LgShader,
+    {
+        let vao_present = self.storage.set_vao(mesh.0.clone());
+        self.storage.set_program(shaders.0.clone(), shaders.1)?;
+        self.storage.set_uniforms(&ubos);
+        if let Some(texture) = &texture {
+            self.storage.set_texture(texture.0.clone(), texture.1)            
+        }
+
+        let vao = self.storage.vaos.get(&mesh.0).ok_or("Failed to get VAO! (OpenGL)")?;
+        let program = self.storage.programs.get(&shaders.0).ok_or("Failed to get Shader Program! (OpenGL)")?;
+
+        program.use_prog();
+        vao.bind();
+
+        let layout = I::gl_info();
+        let stride = std::mem::size_of::<I>();
+        let instance_data = instance_data.align_to::<u8>().1;
+
+        self.instance_vbo.bind();
+        self.instance_vbo.set_data(instance_data, gl::STATIC_DRAW);
+
+        let last_location = V::gl_info().last().ok_or("Failed to get last location! (OpenGL)")?.0;
+        for info in layout {
+            let location = info.0 + last_location + 1;
+            vao.set_attribute(location, info.1, stride, info.2);
             
+            gl::VertexAttribDivisor(location, 1);
+        }
+
+        vao.index_buffer().bind();
+        vao.vertex_buffer().bind();
+
+        if !vao_present {
+            vao.index_buffer().set_data(mesh.2, gl::STATIC_DRAW);
+
+            let layout = V::gl_info();
+            let stride = std::mem::size_of::<V>();
+            let vertex_data = mesh.1.align_to::<u8>().1;
+
+            vao.vertex_buffer().set_data(vertex_data, gl::STATIC_DRAW);
+            for info in layout {
+                vao.set_attribute(info.0, info.1, stride, info.2);
+            }
+        }
+
+        for (key, uniform) in ubos {
+            let ubo = self.storage.buffers.get(&key).ok_or("Failed to get UBO! (OpenGL)")?;
+            
+            ubo.bind();
+            ubo.bind_base(uniform.binding());
+            if uniform.update_data() {
+                ubo.set_data_full(
+                    uniform.data_size(), 
+                    uniform.get_raw_data(), 
+                    gl::STATIC_DRAW
+                );
+            }
+            ubo.unbind();
+        }
+
+        if let Some(texture) = texture {
+            self.storage.textures.get(&texture.0).ok_or("Failed to get Texture! (OpenGL)")?.bind();
+        }
+
+        gl_check!(gl::DrawElementsInstanced(
+            gl::TRIANGLES,
+            mesh.2.len() as i32,
+            gl::UNSIGNED_INT,
+            std::ptr::null(),
+            instance_data.len() as i32,
+        ));
+        
+        vao.unbind();
+        program.unuse();
+
         Ok(())
     }
     pub(crate) unsafe fn begin(&self) {

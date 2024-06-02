@@ -30,10 +30,11 @@ impl GlVertexArray {
         self.vertex_buffer.unbind();
         self.index_buffer.unbind();
     }
-    pub(crate) unsafe fn set_attribute<V: Sized>(
+    pub(crate) unsafe fn set_attribute(
         &self,
         attrib_pos: gl::types::GLuint,
         components: gl::types::GLint,
+        stride: usize,
         offset: gl::types::GLint,
     ) {
         gl_check!(gl::VertexAttribPointer(
@@ -41,7 +42,7 @@ impl GlVertexArray {
             components,
             gl::FLOAT, 
             gl::FALSE, 
-            std::mem::size_of::<V>() as gl::types::GLint, 
+            stride as gl::types::GLint, 
             offset as *const _,
         ));
         gl_check!(gl::EnableVertexAttribArray(attrib_pos));

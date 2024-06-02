@@ -48,7 +48,36 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
                     mesh, 
                     texture,
                     shaders,
-                    ubos
+                    ubos,
+                )?;
+            },
+            RendererAPI::VULKAN(_) => todo!(),
+        }
+        
+        Ok(())
+    }
+    pub unsafe fn draw_instanced<V, I, T, S>(
+        &mut self, 
+        mesh: (K, &[V], &[u32]), 
+        texture: Option<(K, &T)>,
+        shaders: (K, &[(K, &S)]),
+        ubos: Vec<(K, &impl LgUniform)>,
+        instance_data: &[I]
+    ) -> Result<(), StdError>
+    where 
+        V: GlVertex,
+        I: GlVertex,
+        T: LgTexture,
+        S: LgShader,
+    {
+        match &mut self.api {
+            RendererAPI::OPEN_GL(api) => {
+                api.draw_instanced(
+                    mesh, 
+                    texture,
+                    shaders,
+                    ubos,
+                    instance_data,
                 )?;
             },
             RendererAPI::VULKAN(_) => todo!(),

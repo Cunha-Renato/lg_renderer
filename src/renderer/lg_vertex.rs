@@ -1,5 +1,5 @@
 pub trait GlVertex {
-    /// (name, components, offset)
+    /// (location, components, offset)
     unsafe fn gl_info() -> Vec<(u32, i32, i32)>;
 }
 
