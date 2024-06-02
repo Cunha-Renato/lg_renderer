@@ -58,28 +58,27 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
             self.storage.set_texture(texture.0.clone(), texture.1)            
         }
 
-        let vao = self.storage.vaos.get(&mesh.0).unwrap();
-        let program = self.storage.programs.get(&shaders.0).unwrap();
+        let vao = self.storage.vaos.get(&mesh.0).ok_or("Failed to get VAO! (OpenGL)")?;
+        let program = self.storage.programs.get(&shaders.0).ok_or("Failed to get Shader Program! (OpenGL)")?;
 
         program.use_prog();
         vao.bind();
+
         vao.vertex_buffer().bind();
+        vao.vertex_buffer().set_data(mesh.1, gl::DYNAMIC_DRAW);
+
         vao.index_buffer().bind();
+        vao.index_buffer().set_data(mesh.2, gl::DYNAMIC_DRAW);
 
         if !first_vao {
             let infos = V::gl_info();
             for info in infos {
-                let location = program.get_attrib_location(&info.0)?;
-
-                vao.set_attribute::<V>(location, info.1, info.2);
+                vao.set_attribute::<V>(info.0, info.1, info.2);
             }
         }
 
-        vao.vertex_buffer().set_data(mesh.1, gl::STATIC_DRAW);
-        vao.index_buffer().set_data(mesh.2, gl::STATIC_DRAW);
-
         for (key, uniform) in ubos {
-            let ubo = self.storage.buffers.get(&key).unwrap();
+            let ubo = self.storage.buffers.get(&key).ok_or("Failed to get UBO! (OpenGL)")?;
             
             ubo.bind();
             ubo.bind_base(uniform.binding());
@@ -94,7 +93,7 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         }
 
         if let Some(texture) = texture {
-            self.storage.textures.get(&texture.0).unwrap().bind();
+            self.storage.textures.get(&texture.0).ok_or("Failed to get Texture! (OpenGL)")?.bind();
         }
 
         gl_check!(gl::DrawElements(
