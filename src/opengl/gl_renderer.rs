@@ -2,13 +2,12 @@ use std::{ffi::CString, hash::Hash};
 
 use glutin::{display::GlDisplay, surface::GlSurface};
 use crate::{gl_check, renderer::{lg_shader::LgShader, lg_texture::LgTexture, lg_uniform::LgUniform, lg_vertex::GlVertex}, StdError};
-use super::{gl_buffer::GlBuffer, gl_storage::GlStorage, gl_vertex_array::GlVertexArray, GlSpecs};
+use super::{gl_buffer::GlBuffer, gl_storage::GlStorage, GlSpecs};
 
 pub(crate) struct GlRenderer<K: Eq + PartialEq + Hash> {
+    instance_vbo: GlBuffer,
     specs: GlSpecs,
     storage: GlStorage<K>,
-    is_instancing: bool,
-    instance_vbo: GlBuffer,
 }
 impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
     pub(crate) fn new(specs: GlSpecs) -> Self {
@@ -37,7 +36,6 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         unsafe { Self {
             specs,
             storage: GlStorage::default(),
-            is_instancing: false,
             instance_vbo: GlBuffer::new(gl::ARRAY_BUFFER),
         }}
     }
@@ -75,9 +73,8 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
 
             let layout = V::gl_info();
             let stride = std::mem::size_of::<V>();
-            let vertex_data = mesh.1.align_to::<u8>().1;
 
-            vao.vertex_buffer().set_data(vertex_data, gl::STATIC_DRAW);
+            vao.vertex_buffer().set_data(mesh.1, gl::STATIC_DRAW);
             for info in layout {
                 vao.set_attribute(info.0, info.1, stride, info.2);
             }
@@ -108,7 +105,9 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
             gl::UNSIGNED_INT,
             std::ptr::null(),
         ));
-        
+
+        vao.vertex_buffer().unbind();        
+        vao.index_buffer().unbind();
         vao.unbind();
         program.unuse();
 
@@ -145,7 +144,7 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
 
         let layout = I::gl_info();
         let stride = std::mem::size_of::<I>();
-        let instance_data = instance_data.align_to::<u8>().1;
+        let instance_count = instance_data.len();
 
         self.instance_vbo.bind();
         self.instance_vbo.set_data(instance_data, gl::STATIC_DRAW);
@@ -166,9 +165,8 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
 
             let layout = V::gl_info();
             let stride = std::mem::size_of::<V>();
-            let vertex_data = mesh.1.align_to::<u8>().1;
 
-            vao.vertex_buffer().set_data(vertex_data, gl::STATIC_DRAW);
+            vao.vertex_buffer().set_data(mesh.1, gl::STATIC_DRAW);
             for info in layout {
                 vao.set_attribute(info.0, info.1, stride, info.2);
             }
@@ -198,9 +196,12 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
             mesh.2.len() as i32,
             gl::UNSIGNED_INT,
             std::ptr::null(),
-            instance_data.len() as i32,
+            instance_count as i32,
         ));
         
+        self.instance_vbo.unbind();
+        vao.vertex_buffer().unbind();
+        vao.index_buffer().unbind();
         vao.unbind();
         program.unuse();
 
