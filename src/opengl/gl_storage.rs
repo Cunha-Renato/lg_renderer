@@ -5,11 +5,11 @@ use super::{gl_buffer::GlBuffer, gl_program::GlProgram, gl_shader::GlShader, gl_
 #[derive(Default)]
 pub(crate) struct GlStorage<K: Eq + PartialEq + Hash> {
     pub(crate) buffers: HashMap<K, GlBuffer>,
+    pub(crate) textures: HashMap<K, GlTexture>,
     shaders: HashMap<K, GlShader>,
 
     pub(crate) vaos: HashMap<K, GlVertexArray>,
     pub(crate) programs: HashMap<K, GlProgram>,
-    pub(crate) textures: HashMap<K, GlTexture>,
 }
 impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
     pub(crate) unsafe fn set_vao(&mut self, key: K) -> bool {
@@ -34,10 +34,10 @@ impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
 
         Ok(())
     }
-    pub(crate) unsafe fn set_texture<T: LgTexture>(&mut self, key: K, texture: &T) {
+    pub(crate) unsafe fn set_texture<T: LgTexture>(&mut self, key: K, texture: &T, location: u32) {
         self.textures.entry(key).or_insert_with(|| {
             let gl_tex = GlTexture::new();
-            gl_tex.bind();
+            gl_tex.bind(location);
             gl_tex.load(texture);
             
             gl_tex
@@ -66,6 +66,13 @@ impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
                 buffer
             });
         }
+    }
+    pub(crate) fn clear(&mut self) {
+        self.buffers.clear();
+        self.shaders.clear();
+        self.textures.clear();
+        self.vaos.clear();
+        self.programs.clear();
     }
     
     unsafe fn set_shaders<S: LgShader>(&mut self, shaders: &[(K, &S)]) -> Result<Vec<gl::types::GLuint>, StdError> {

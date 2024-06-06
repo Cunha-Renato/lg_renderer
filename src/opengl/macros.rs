@@ -1,7 +1,7 @@
 pub(crate) fn check_gl_error(stmt: &str, fname: &str, line: u32) {
     let err = unsafe { gl::GetError() };
     if err != gl::NO_ERROR {
-        sllog::error!("OpenGL error {:08x}, at {}:{} - for {}", err, fname, line, stmt);
+        println!("OpenGL error {:08x}, at {}:{} - for {}", err, fname, line, stmt);
         std::process::abort();
     }
 }

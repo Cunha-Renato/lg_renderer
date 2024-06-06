@@ -11,7 +11,8 @@ impl GlTexture {
         
         Self { id }
     }
-    pub(crate) unsafe fn bind(&self) {
+    pub(crate) unsafe fn bind(&self, location: u32) {
+        gl_check!(gl::ActiveTexture(gl::TEXTURE0 + location));
         gl_check!(gl::BindTexture(gl::TEXTURE_2D, self.id));
     }
     pub(crate) unsafe fn unbind(&self) {

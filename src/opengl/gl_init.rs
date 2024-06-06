@@ -4,7 +4,7 @@ use glutin::{
     display::{
         GetGlDisplay, 
         GlDisplay
-    }, 
+    }, surface::GlSurface, 
 };
 use glutin_winit::GlWindow;
 use sllog::info;
@@ -49,7 +49,7 @@ pub fn init_opengl(event_loop: &winit::event_loop::EventLoop<()>, window_builder
         (gl_display.create_context(&gl_config, &contex_attributes)?.make_current(&gl_surface)?, gl_surface)
     };
     // VSYNC
-    // gl_surface.set_swap_interval(&gl_context, glutin::surface::SwapInterval::Wait(NonZeroU32::new(1).unwrap()))?;
+    gl_surface.set_swap_interval(&gl_context, glutin::surface::SwapInterval::Wait(std::num::NonZeroU32::new(1).unwrap()))?;
     
     Ok((window, GlSpecs{
         gl_context,

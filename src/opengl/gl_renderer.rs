@@ -1,13 +1,14 @@
 use std::{ffi::CString, hash::Hash};
 
 use glutin::{display::GlDisplay, surface::GlSurface};
-use crate::{gl_check, renderer::{lg_shader::LgShader, lg_texture::LgTexture, lg_uniform::LgUniform, lg_vertex::GlVertex}, StdError};
+use sllog::error;
+use crate::{gl_check, renderer::{lg_shader::LgShader, lg_texture::LgTexture, lg_uniform::LgUniform, lg_vertex::GlVertex, GraphicsApi}, StdError};
 use super::{gl_buffer::GlBuffer, gl_storage::GlStorage, GlSpecs};
 
 pub(crate) struct GlRenderer<K: Eq + PartialEq + Hash> {
     instance_vbo: GlBuffer,
-    specs: GlSpecs,
     storage: GlStorage<K>,
+    specs: GlSpecs,
 }
 impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
     pub(crate) fn new(specs: GlSpecs) -> Self {
@@ -16,23 +17,6 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
             specs.gl_display.get_proc_address(symbol.as_c_str()).cast()
         });
         
-        unsafe {
-            if cfg!(debug_assertions) {
-                gl_check!(gl::Enable(gl::DEBUG_OUTPUT));
-                gl_check!(gl::DebugMessageCallback(Some(super::debug_callback), std::ptr::null()));
-            }
-            
-            gl_check!(gl::Enable(gl::DEPTH_TEST));
-            gl_check!(gl::DepthFunc(gl::LESS));
-            gl_check!(gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA));
-            gl_check!(gl::Enable(gl::BLEND));
-            
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
-        }
-
         unsafe { Self {
             specs,
             storage: GlStorage::default(),
@@ -57,7 +41,7 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         self.storage.set_program(shaders.0.clone(), shaders.1)?;
         self.storage.set_uniforms(&ubos);
         if let Some(texture) = &texture {
-            self.storage.set_texture(texture.0.clone(), texture.1)            
+            self.storage.set_texture(texture.0.clone(), texture.1, 0)            
         }
 
         let vao = self.storage.vaos.get(&mesh.0).ok_or("Failed to get VAO! (OpenGL)")?;
@@ -96,7 +80,7 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         }
 
         if let Some(texture) = texture {
-            self.storage.textures.get(&texture.0).ok_or("Failed to get Texture! (OpenGL)")?.bind();
+            self.storage.textures.get(&texture.0).ok_or("Failed to get Texture! (OpenGL)")?.bind(0);
         }
 
         gl_check!(gl::DrawElements(
@@ -116,7 +100,7 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
     pub(crate) unsafe fn draw_instanced<V, I, T, S>(
         &mut self, 
         mesh: (K, &[V], &[u32]), 
-        texture: Option<(K, &T)>,
+        textures: &[(K, &T, u32)],
         shaders: (K, &[(K, &S)]),
         ubos: Vec<(K, &impl LgUniform)>,
         
@@ -132,8 +116,9 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
         let vao_present = self.storage.set_vao(mesh.0.clone());
         self.storage.set_program(shaders.0.clone(), shaders.1)?;
         self.storage.set_uniforms(&ubos);
-        if let Some(texture) = &texture {
-            self.storage.set_texture(texture.0.clone(), texture.1)            
+        
+        for tex in textures {
+            self.storage.set_texture(tex.0.clone(), tex.1, tex.2);
         }
 
         let vao = self.storage.vaos.get(&mesh.0).ok_or("Failed to get VAO! (OpenGL)")?;
@@ -187,8 +172,9 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
             ubo.unbind();
         }
 
-        if let Some(texture) = texture {
-            self.storage.textures.get(&texture.0).ok_or("Failed to get Texture! (OpenGL)")?.bind();
+        for tex in textures {
+            self.storage.textures.get(&tex.0).ok_or("Failed to get Texture! (OpenGL)")?.bind(tex.2);
+            gl_check!(gl::Uniform1i(tex.2 as i32, tex.2 as i32))
         }
 
         gl_check!(gl::DrawElementsInstanced(
@@ -263,4 +249,93 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
 
         Ok(())
     }
+}
+impl<K: Eq + PartialEq + Hash + Default + Clone> GraphicsApi for GlRenderer<K> {
+    unsafe fn init(&mut self) -> Result<(), StdError> {
+        if true {
+            gl_check!(gl::Enable(gl::DEBUG_OUTPUT));
+            gl_check!(gl::DebugMessageCallback(Some(debug_callback), std::ptr::null()));
+        }
+        
+        gl_check!(gl::Enable(gl::DEPTH_TEST));
+        gl_check!(gl::DepthFunc(gl::LESS));
+        gl_check!(gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA));
+        gl_check!(gl::Enable(gl::BLEND));
+        
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+
+        Ok(())
+    }
+
+    unsafe fn shutdown(&mut self) -> Result<(), StdError> {
+        self.instance_vbo.unbind();
+        self.storage.clear();
+
+        Ok(())
+    }
+}
+impl<K: Eq + PartialEq + Hash> Drop for GlRenderer<K> {
+    fn drop(&mut self) {
+        unsafe { 
+            loop {
+                let err = gl::GetError();
+                if err == gl::NO_ERROR {
+                    break;
+                }
+                
+                println!("OpenGL error {:08x}", err);
+            }
+        }
+    }
+}
+
+extern "system" fn debug_callback(
+    source: gl::types::GLenum,
+    gltype: gl::types::GLenum,
+    id: gl::types::GLuint,
+    severity: gl::types::GLenum,
+    _length: gl::types::GLsizei,
+    message: *const gl::types::GLchar,
+    _user_param: *mut std::ffi::c_void,
+) {
+    let source_str = match source {
+        gl::DEBUG_SOURCE_API => "API",
+        gl::DEBUG_SOURCE_WINDOW_SYSTEM => "Window System",
+        gl::DEBUG_SOURCE_SHADER_COMPILER => "Shader Compiler",
+        gl::DEBUG_SOURCE_THIRD_PARTY => "Third Party",
+        gl::DEBUG_SOURCE_APPLICATION => "Application",
+        _ => "Unknown",
+    };
+
+    let severity_str = match severity {
+        gl::DEBUG_SEVERITY_HIGH => "High",
+        gl::DEBUG_SEVERITY_MEDIUM => "Medium",
+        gl::DEBUG_SEVERITY_LOW => "Low",
+        gl::DEBUG_SEVERITY_NOTIFICATION => "Notification",
+        _ => "Unknown",
+    };
+
+    let gltype_str = match gltype {
+        gl::DEBUG_TYPE_ERROR => "Error",
+        gl::DEBUG_TYPE_DEPRECATED_BEHAVIOR => "Deprecated Behavior",
+        gl::DEBUG_TYPE_UNDEFINED_BEHAVIOR => "Undefined Behavior",
+        gl::DEBUG_TYPE_PORTABILITY => "Portability",
+        gl::DEBUG_TYPE_PERFORMANCE => "Performance",
+        gl::DEBUG_TYPE_OTHER => "Other",
+        gl::DEBUG_TYPE_MARKER => "Marker",
+        gl::DEBUG_TYPE_PUSH_GROUP => "Push Group",
+        gl::DEBUG_TYPE_POP_GROUP => "Pop Group",
+        _ => "Unknown",
+    };
+
+    let message_str = unsafe { 
+        std::str::from_utf8(std::ffi::CStr::from_ptr(message).to_bytes()).unwrap() 
+    };
+    error!(
+        "OpenGL Debug Message:\n  Source: {}\n  Type: {}\n  ID: {}\n  Severity: {}\n  Message: {}",
+        source_str, gltype_str, id, severity_str, message_str
+    );
 }

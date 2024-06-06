@@ -10,6 +10,11 @@ pub mod lg_texture;
 pub mod lg_shader;
 pub mod lg_uniform;
 
+pub(crate) trait GraphicsApi {
+    unsafe fn init(&mut self) -> Result<(), StdError>;
+    unsafe fn shutdown(&mut self) -> Result<(), StdError>;
+}
+
 enum RendererAPI<K: Eq + PartialEq + Hash> {
     OPEN_GL(GlRenderer<K>),
     VULKAN(()),
@@ -29,6 +34,18 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
         Ok((window, Self {
             api: RendererAPI::OPEN_GL(GlRenderer::new(specs))
         }))
+    }
+    pub unsafe fn init(&mut self) -> Result<(), StdError> {
+        match &mut self.api {
+            RendererAPI::OPEN_GL(gl) => gl.init(),
+            RendererAPI::VULKAN(_) => todo!(),
+        }
+    }
+    pub unsafe fn shutdown(&mut self) -> Result<(), StdError> {
+        match &mut self.api {
+            RendererAPI::OPEN_GL(gl) => gl.shutdown(),
+            RendererAPI::VULKAN(_) => todo!(),
+        }
     }
     pub unsafe fn draw<V, T, S>(
         &mut self, 
@@ -59,7 +76,7 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
     pub unsafe fn draw_instanced<V, I, T, S>(
         &mut self, 
         mesh: (K, &[V], &[u32]), 
-        texture: Option<(K, &T)>,
+        textures: &[(K, &T, u32)],
         shaders: (K, &[(K, &S)]),
         ubos: Vec<(K, &impl LgUniform)>,
         instance_data: &[I]
@@ -74,7 +91,7 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
             RendererAPI::OPEN_GL(api) => {
                 api.draw_instanced(
                     mesh, 
-                    texture,
+                    textures,
                     shaders,
                     ubos,
                     instance_data,
