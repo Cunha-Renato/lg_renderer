@@ -1,3 +1,4 @@
+pub trait LgVertex: GlVertex {}
 pub trait GlVertex {
     /// (location, components, offset)
     unsafe fn gl_info() -> Vec<(u32, i32, i32)>;
@@ -30,5 +31,6 @@ macro_rules! lg_vertex {
                 result
             }
         }
+        impl lg_renderer::renderer::lg_vertex::LgVertex for $struct_name {}
     };
 }
