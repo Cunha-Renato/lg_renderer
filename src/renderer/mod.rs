@@ -20,20 +20,48 @@ enum RendererAPI<K: Eq + PartialEq + Hash> {
     VULKAN(()),
 }
 
+pub enum CreationApiInfo {
+    OPEN_GL,
+    VULKAN,
+}
+pub struct CreationWindowInfo<'a> {
+    pub event_loop: Option<&'a winit::event_loop::EventLoop<()>>,
+    pub title: String,
+    pub width: u32,
+    pub height: u32,
+}
+impl<'a> CreationWindowInfo<'a> {
+    pub fn new(title: &str, width: u32, height: u32) -> Self {
+        Self { 
+            event_loop: None, 
+            title: title.to_string(), 
+            width, 
+            height 
+        }
+    }
+}
+
+
+pub struct LgRendererCreationInfo<'a> {
+    pub renderer_api: CreationApiInfo,
+    pub window_info: CreationWindowInfo<'a>,
+}
+
 pub struct LgRenderer<K: Clone +  Default + Eq + PartialEq + Hash> {
     api: RendererAPI<K>,
 }
 impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
-    pub fn new_opengl(
-        event_loop: &winit::event_loop::EventLoop<()>, 
-        window_builder: winit::window::WindowBuilder,
-    ) -> Result<(winit::window::Window, Self), StdError>
-    {
-        let (window, specs) = init_opengl(event_loop, window_builder)?;
-
-        Ok((window, Self {
-            api: RendererAPI::OPEN_GL(GlRenderer::new(specs))
-        }))
+    pub fn new(info: LgRendererCreationInfo) -> Result<(winit::window::Window, Self), StdError> {
+        match &info.renderer_api {
+            CreationApiInfo::OPEN_GL => {
+                let (window, gl_specs) = init_opengl(info.window_info)?;
+                
+                Ok((window, Self {
+                    api: RendererAPI::OPEN_GL(GlRenderer::new(gl_specs))
+                }))
+            },
+            CreationApiInfo::VULKAN => todo!(),
+        }
     }
     pub unsafe fn init(&mut self) -> Result<(), StdError> {
         match &mut self.api {

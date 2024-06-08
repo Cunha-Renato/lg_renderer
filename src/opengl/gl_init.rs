@@ -9,23 +9,28 @@ use glutin::{
 use glutin_winit::GlWindow;
 use sllog::info;
 use raw_window_handle::HasRawWindowHandle;
-use crate::StdError;
+use crate::{renderer::CreationWindowInfo, StdError};
 use super::GlSpecs;
 
-
-pub fn init_opengl(event_loop: &winit::event_loop::EventLoop<()>, window_builder: winit::window::WindowBuilder) -> Result<(winit::window::Window, GlSpecs), StdError>{
+pub(crate) fn init_opengl(window_info: CreationWindowInfo) -> Result<(winit::window::Window, GlSpecs), StdError>
+{
     let template = glutin::config::ConfigTemplateBuilder::new();
+
+    let window_builder = winit::window::WindowBuilder::new()
+        .with_inner_size(winit::dpi::PhysicalSize{ 
+            width: window_info.width, 
+            height: window_info.height 
+        })
+        .with_title(window_info.title);
 
     let display_builder = glutin_winit::DisplayBuilder::new()
         .with_window_builder(Some(window_builder));
     
     let (window, gl_config) = display_builder.build(
-        event_loop, 
+        window_info.event_loop.unwrap(), 
         template, 
         gl_config_picker
     )?;
-    
-    info!("Picked a config with {} samples. (OpenGL)", gl_config.num_samples());
     
     let window = match window {
         Some(window) => window,
@@ -58,7 +63,7 @@ pub fn init_opengl(event_loop: &winit::event_loop::EventLoop<()>, window_builder
     }))
 }
 
-pub fn gl_config_picker(configs: Box<dyn Iterator<Item = glutin::config::Config> + '_>) -> glutin::config::Config {
+pub(crate) fn gl_config_picker(configs: Box<dyn Iterator<Item = glutin::config::Config> + '_>) -> glutin::config::Config {
     configs
         .reduce(|accum, config| {
             if config.num_samples() > accum.num_samples() {
