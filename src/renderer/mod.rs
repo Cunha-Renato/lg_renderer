@@ -11,8 +11,8 @@ pub mod lg_shader;
 pub mod lg_uniform;
 
 pub(crate) trait GraphicsApi {
-    unsafe fn init(&mut self) -> Result<(), StdError>;
-    unsafe fn shutdown(&mut self) -> Result<(), StdError>;
+    fn init(&mut self) -> Result<(), StdError>;
+    fn shutdown(&mut self) -> Result<(), StdError>;
 }
 
 enum RendererAPI<K: Eq + PartialEq + Hash> {
@@ -57,25 +57,39 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
                 let (window, gl_specs) = init_opengl(info.window_info)?;
                 
                 Ok((window, Self {
-                    api: RendererAPI::OPEN_GL(GlRenderer::new(gl_specs))
+                    api: RendererAPI::OPEN_GL(GlRenderer::new(gl_specs)?)
                 }))
             },
             CreationApiInfo::VULKAN => todo!(),
         }
     }
-    pub unsafe fn init(&mut self) -> Result<(), StdError> {
+    pub fn init(&mut self) -> Result<(), StdError> {
         match &mut self.api {
             RendererAPI::OPEN_GL(gl) => gl.init(),
             RendererAPI::VULKAN(_) => todo!(),
         }
     }
-    pub unsafe fn shutdown(&mut self) -> Result<(), StdError> {
+    pub fn shutdown(&mut self) -> Result<(), StdError> {
         match &mut self.api {
             RendererAPI::OPEN_GL(gl) => gl.shutdown(),
             RendererAPI::VULKAN(_) => todo!(),
         }
     }
-    pub unsafe fn draw<V, T, S>(
+
+    pub fn set_vsync(&mut self, v_sync: bool) {
+        match &mut self.api {
+            RendererAPI::OPEN_GL(gl) => gl.set_vsync(v_sync),
+            RendererAPI::VULKAN(_) => todo!(),
+        }
+    }
+    pub fn is_vsync(&self) -> bool {
+         match &self.api {
+            RendererAPI::OPEN_GL(gl) => gl.is_vsync(),
+            RendererAPI::VULKAN(_) => todo!(),
+        }       
+    }
+
+    pub fn draw<V, T, S>(
         &mut self, 
         mesh: (K, &[V], &[u32]), 
         texture: Option<(K, &T)>,
@@ -101,7 +115,7 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
         
         Ok(())
     }
-    pub unsafe fn draw_instanced<V, I, T, S>(
+    pub fn draw_instanced<V, I, T, S>(
         &mut self, 
         mesh: (K, &[V], &[u32]), 
         textures: &[(K, &T, u32)],
@@ -130,13 +144,13 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
         
         Ok(())
     }
-    pub unsafe fn begin(&self) {
-        match &self.api {
-            RendererAPI::OPEN_GL(gl) => gl.begin(),
+    pub fn begin(&self) -> Result<(), StdError> {
+        Ok(match &self.api {
+            RendererAPI::OPEN_GL(gl) => gl.begin()?,
             RendererAPI::VULKAN(_) => todo!()
-        }
+        })
     }
-    pub unsafe fn end(&self) -> Result<(), StdError> {
+    pub fn end(&self) -> Result<(), StdError> {
         match &self.api {
             RendererAPI::OPEN_GL(gl) => gl.end()?,
             RendererAPI::VULKAN(_) => todo!()
@@ -144,7 +158,7 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
         
         Ok(())
     }
-    pub unsafe fn resize(&self, new_size: (u32, u32)) -> Result<(), StdError> {
+    pub fn resize(&self, new_size: (u32, u32)) -> Result<(), StdError> {
         match &self.api {
             RendererAPI::OPEN_GL(gl) => gl.resize(new_size)?,
             RendererAPI::VULKAN(_) => todo!(),
@@ -158,7 +172,7 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
             RendererAPI::VULKAN(_) => todo!(),
         }
     }
-    pub unsafe fn set_uniform_buffer_data(&self, key: K, data: &Vec<u8>) -> Result<(), StdError> {
+    pub fn set_uniform_buffer_data(&self, key: K, data: &Vec<u8>) -> Result<(), StdError> {
         match &self.api {
             RendererAPI::OPEN_GL(gl) => gl.set_buffer_data(key, data),
             RendererAPI::VULKAN(_) => todo!(),

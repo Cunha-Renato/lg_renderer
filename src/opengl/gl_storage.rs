@@ -1,5 +1,5 @@
 use std::{collections::HashMap, hash::Hash};
-use crate::{renderer::{lg_shader::LgShader, lg_texture::LgTexture, lg_uniform::LgUniform}, StdError};
+use crate::renderer::{lg_shader::LgShader, lg_texture::LgTexture, lg_uniform::LgUniform};
 use super::{gl_buffer::GlBuffer, gl_program::GlProgram, gl_shader::GlShader, gl_texture::GlTexture, gl_vertex_array::GlVertexArray};
 
 #[derive(Default)]
@@ -12,38 +12,36 @@ pub(crate) struct GlStorage<K: Eq + PartialEq + Hash> {
     pub(crate) programs: HashMap<K, GlProgram>,
 }
 impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
-    pub(crate) unsafe fn set_vao(&mut self, key: K) -> bool {
+    pub(crate) fn set_vao(&mut self, key: K) -> bool {
         let mut present = true;
         self.vaos.entry(key).or_insert_with(|| {
             present = false;
-            GlVertexArray::new()
+            GlVertexArray::new().unwrap()
         });
         
         present
     }
-    pub(crate) unsafe fn set_program<S: LgShader>(&mut self, key: K, shaders: &[(K, &S)]) -> Result<(), StdError> {
-        let shaders = self.set_shaders(shaders)?;
+    pub(crate) fn set_program<S: LgShader>(&mut self, key: K, shaders: &[(K, &S)]) {
+        let shaders = self.set_shaders(shaders);
 
         self.programs.entry(key).or_insert_with(|| {
-            let mut program = GlProgram::new();
-            program.set_shaders(shaders);
+            let mut program = GlProgram::new().unwrap();
+            program.set_shaders(shaders).unwrap();
             program.link().unwrap();
             
             program
         });
-
-        Ok(())
     }
-    pub(crate) unsafe fn set_texture<T: LgTexture>(&mut self, key: K, texture: &T, location: u32) {
+    pub(crate) fn set_texture<T: LgTexture>(&mut self, key: K, texture: &T, location: u32) {
         self.textures.entry(key).or_insert_with(|| {
-            let gl_tex = GlTexture::new();
-            gl_tex.bind(location);
-            gl_tex.load(texture);
+            let gl_tex = GlTexture::new().unwrap();
+            gl_tex.bind(location).unwrap();
+            gl_tex.load(texture).unwrap();
             
             gl_tex
         });
     }
-    pub(crate) unsafe fn set_uniforms(&mut self, uniforms: &[(K, &impl LgUniform)]) {
+    pub(crate) fn set_uniforms(&mut self, uniforms: &[(K, &impl LgUniform)]) {
         for (key, ubo) in uniforms {
             self.buffers.entry(key.clone()).or_insert_with(|| {
                 let usage = match ubo.u_type() {
@@ -52,16 +50,16 @@ impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
                     crate::renderer::lg_uniform::LgUniformType::COMBINED_IMAGE_SAMPLER => gl::SAMPLER_2D,
                 };
                 
-                let buffer = GlBuffer::new(usage);
+                let buffer = GlBuffer::new(usage).unwrap();
                 
-                buffer.bind();
-                buffer.bind_base(ubo.binding());
+                buffer.bind().unwrap();
+                buffer.bind_base(ubo.binding()).unwrap();
                 buffer.set_data_full(
                     ubo.data_size(), 
                     ubo.get_raw_data(),
                     gl::STATIC_DRAW,
-                );
-                buffer.unbind();
+                ).unwrap();
+                buffer.unbind().unwrap();
                 
                 buffer
             });
@@ -75,7 +73,7 @@ impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
         self.programs.clear();
     }
     
-    unsafe fn set_shaders<S: LgShader>(&mut self, shaders: &[(K, &S)]) -> Result<Vec<gl::types::GLuint>, StdError> {
+    fn set_shaders<S: LgShader>(&mut self, shaders: &[(K, &S)]) -> Vec<gl::types::GLuint> {
         let mut result = Vec::new();
         for s in shaders {
             let shader = self.shaders.entry(s.0.clone()).or_insert_with(|| {
@@ -84,6 +82,6 @@ impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
             result.push(shader.id());
         }
         
-        Ok(result)
+        result
     }
 }

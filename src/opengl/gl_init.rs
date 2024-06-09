@@ -7,7 +7,6 @@ use glutin::{
     }, surface::GlSurface, 
 };
 use glutin_winit::GlWindow;
-use sllog::info;
 use raw_window_handle::HasRawWindowHandle;
 use crate::{renderer::CreationWindowInfo, StdError};
 use super::GlSpecs;
@@ -53,8 +52,6 @@ pub(crate) fn init_opengl(window_info: CreationWindowInfo) -> Result<(winit::win
 
         (gl_display.create_context(&gl_config, &contex_attributes)?.make_current(&gl_surface)?, gl_surface)
     };
-    // VSYNC
-    /* gl_surface.set_swap_interval(&gl_context, glutin::surface::SwapInterval::Wait(std::num::NonZeroU32::new(1).unwrap()))?; */
     
     Ok((window, GlSpecs{
         gl_context,

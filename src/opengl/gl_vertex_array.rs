@@ -1,5 +1,5 @@
 use crate::gl_check;
-use super::gl_buffer::GlBuffer;
+use super::{gl_buffer::GlBuffer, GlError};
 
 #[derive(Debug)]
 pub struct GlVertexArray {
@@ -8,11 +8,15 @@ pub struct GlVertexArray {
     index_buffer: GlBuffer,
 }
 impl GlVertexArray {
-    pub(crate) unsafe fn new() -> Self {
+    pub(crate) fn new() -> Result<Self, GlError> {
         let mut id = 0;
-        gl_check!(gl::GenVertexArrays(1, &mut id));
+        gl_check!(gl::GenVertexArrays(1, &mut id), "Failed to generate vertex array!")?;
         
-        Self { id, vertex_buffer: GlBuffer::new(gl::ARRAY_BUFFER), index_buffer: GlBuffer::new(gl::ELEMENT_ARRAY_BUFFER) }
+        Ok(Self { 
+            id, 
+            vertex_buffer: GlBuffer::new(gl::ARRAY_BUFFER)?,
+            index_buffer: GlBuffer::new(gl::ELEMENT_ARRAY_BUFFER)?,
+        })
     }
     pub(crate) fn vertex_buffer(&self) -> &GlBuffer {
         &self.vertex_buffer
@@ -20,40 +24,42 @@ impl GlVertexArray {
     pub(crate) fn index_buffer(&self) -> &GlBuffer {
         &self.index_buffer
     }
-    pub(crate) unsafe fn bind(&self) {
-        gl_check!(gl::BindVertexArray(self.id));
+    pub(crate) fn bind(&self) -> Result<(), GlError> {
+        gl_check!(gl::BindVertexArray(self.id), "Failed o bind vertex array!")
     }
-    pub(crate) unsafe fn unbind(&self) {
-        gl_check!(gl::BindVertexArray(0));
+    pub(crate) fn unbind(&self) -> Result<(), GlError> {
+        gl_check!(gl::BindVertexArray(0), "Failed to unbind vertex array!")
     }
-    pub(crate) unsafe fn unbind_buffers(&self) {
-        self.vertex_buffer.unbind();
-        self.index_buffer.unbind();
+    pub(crate) fn unbind_buffers(&self) -> Result<(), GlError> {
+        self.vertex_buffer.unbind()?;
+        self.index_buffer.unbind()
     }
-    pub(crate) unsafe fn set_attribute(
+    pub(crate) fn set_attribute(
         &self,
         attrib_pos: gl::types::GLuint,
         components: gl::types::GLint,
         stride: usize,
         offset: gl::types::GLint,
-    ) {
-        gl_check!(gl::VertexAttribPointer(
-            attrib_pos, 
-            components,
-            gl::FLOAT, 
-            gl::FALSE, 
-            stride as gl::types::GLint, 
-            offset as *const _,
-        ));
-        gl_check!(gl::EnableVertexAttribArray(attrib_pos));
+    ) -> Result<(), GlError> 
+    {
+        gl_check!(
+            gl::VertexAttribPointer(
+                attrib_pos, 
+                components,
+                gl::FLOAT, 
+                gl::FALSE, 
+                stride as gl::types::GLint, 
+                offset as *const _,
+            ),
+            "Failed to call glVertexAttribPointer!"
+        )?;
+        gl_check!(gl::EnableVertexAttribArray(attrib_pos), "Failed to enable vertex attrib array!")
     }
 }
 impl Drop for GlVertexArray {
     fn drop(&mut self) {
-        unsafe { 
-            self.unbind_buffers();
-            self.unbind();
-            gl_check!(gl::DeleteVertexArrays(1, [self.id].as_ptr()));
-        }
+        self.unbind_buffers().unwrap();
+        self.unbind().unwrap();
+        gl_check!(gl::DeleteVertexArrays(1, [self.id].as_ptr()), "Failed to delete vertex array!").unwrap();
     }
 }

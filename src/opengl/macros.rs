@@ -1,24 +1,24 @@
-pub(crate) fn check_gl_error(stmt: &str, fname: &str, line: u32) {
-    let err = unsafe { gl::GetError() };
-    if err != gl::NO_ERROR {
-        println!("OpenGL error {:08x}, at {}:{} - for {}", err, fname, line, stmt);
-        std::process::abort();
-    }
-}
+use super::GlError;
 
 #[cfg(debug_assertions)]
-#[macro_export]
-macro_rules! gl_check {
-    ($stmt:expr) => {{
-        $stmt;
-        crate::opengl::macros::check_gl_error(stringify!($stmt), file!(), line!());
-    }};
+pub(crate) fn check_gl_error(stmt: &str, fname: &str, line: u32, description: &str) -> Result<(), GlError>{
+    let err = unsafe { gl::GetError() };
+    if err != gl::NO_ERROR {
+        let gl_error = std::format!("OpenGL error {:08x}, at {}:{} - for {}", err, fname, line, stmt);
+        Err(GlError::Error(gl_error, description.to_string()))
+    } else {
+        Ok(())
+    }
+}
+#[cfg(not(debug_assertions))]
+pub(crate) fn check_gl_error(stmt: &str, fname: &str, line: u32, description: &str) -> Result<(), GlError>{
+    Ok(())
 }
 
-#[cfg(not(debug_assertions))]
 #[macro_export]
 macro_rules! gl_check {
-    ($stmt:expr) => {{
-        $stmt;
+    ($stmt:expr, $desc:tt) => {{
+        unsafe {$stmt;}
+        crate::opengl::macros::check_gl_error(stringify!($stmt), file!(), line!(), $desc)
     }};
 }
