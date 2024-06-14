@@ -21,8 +21,8 @@ impl std::fmt::Display for GlError {
 }
 impl std::error::Error for GlError {}
 
-pub(crate) struct GlSpecs {
-    pub(crate) gl_surface: glutin::surface::Surface<glutin::surface::WindowSurface>,
-    pub(crate) gl_display: glutin::display::Display, 
-    pub(crate) gl_context: glutin::context::PossiblyCurrentContext,
+pub struct GlSpecs {
+    pub gl_surface: glutin::surface::Surface<glutin::surface::WindowSurface>,
+    pub gl_display: glutin::display::Display, 
+    pub gl_context: glutin::context::PossiblyCurrentContext,
 }

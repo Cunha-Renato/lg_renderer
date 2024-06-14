@@ -1,4 +1,4 @@
-use crate::{gl_check, renderer::lg_texture::{LgTexture, TextureFormat, TextureType}};
+use crate::{gl_check, renderer_core::lg_texture::{LgTexture, TextureFormat, TextureType}};
 
 use super::GlError;
 

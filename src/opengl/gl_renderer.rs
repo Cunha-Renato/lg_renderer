@@ -2,17 +2,22 @@ use std::{ffi::CString, hash::Hash};
 
 use glutin::{display::GlDisplay, surface::GlSurface};
 use sllog::error;
-use crate::{gl_check, renderer::{lg_shader::LgShader, lg_texture::LgTexture, lg_uniform::LgUniform, lg_vertex::GlVertex, GraphicsApi}, StdError};
+use crate::{gl_check, renderer_core::{lg_shader::LgShader, lg_texture::LgTexture, lg_uniform::LgUniform, lg_vertex::GlVertex, GraphicsApi}, StdError};
 use super::{gl_buffer::GlBuffer, gl_storage::GlStorage, GlError, GlSpecs};
 
 struct RendererConfig {
     v_sync: bool,
 }
-pub(crate) struct GlRenderer<K: Eq + PartialEq + Hash> {
+pub struct GlRenderer<K: Eq + PartialEq + Hash> {
     instance_vbo: GlBuffer,
     storage: GlStorage<K>,
     specs: GlSpecs,
     config: RendererConfig,
+}
+impl<K: Eq + PartialEq + Hash> GlRenderer<K> {
+    pub fn get_specs(&self) -> &GlSpecs {
+        &self.specs
+    }
 }
 impl<K: Eq + PartialEq + Hash> GlRenderer<K> {
     pub(crate) fn set_vsync(&mut self, v_sync: bool) {

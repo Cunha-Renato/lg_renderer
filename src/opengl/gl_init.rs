@@ -8,7 +8,7 @@ use glutin::{
 };
 use glutin_winit::GlWindow;
 use raw_window_handle::HasRawWindowHandle;
-use crate::{renderer::CreationWindowInfo, StdError};
+use crate::{renderer_core::CreationWindowInfo, StdError};
 use super::GlSpecs;
 
 pub(crate) fn init_opengl(window_info: CreationWindowInfo) -> Result<(winit::window::Window, GlSpecs), StdError>

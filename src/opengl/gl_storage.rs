@@ -1,5 +1,5 @@
 use std::{collections::HashMap, hash::Hash};
-use crate::renderer::{lg_shader::LgShader, lg_texture::LgTexture, lg_uniform::LgUniform};
+use crate::renderer_core::{lg_shader::LgShader, lg_texture::LgTexture, lg_uniform::LgUniform};
 use super::{gl_buffer::GlBuffer, gl_program::GlProgram, gl_shader::GlShader, gl_texture::GlTexture, gl_vertex_array::GlVertexArray};
 
 #[derive(Default)]
@@ -45,9 +45,9 @@ impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
         for (key, ubo) in uniforms {
             self.buffers.entry(key.clone()).or_insert_with(|| {
                 let usage = match ubo.u_type() {
-                    crate::renderer::lg_uniform::LgUniformType::STRUCT => gl::UNIFORM_BUFFER,
-                    crate::renderer::lg_uniform::LgUniformType::STORAGE_BUFFER => gl::SHADER_STORAGE_BUFFER,
-                    crate::renderer::lg_uniform::LgUniformType::COMBINED_IMAGE_SAMPLER => gl::SAMPLER_2D,
+                    crate::renderer_core::lg_uniform::LgUniformType::STRUCT => gl::UNIFORM_BUFFER,
+                    crate::renderer_core::lg_uniform::LgUniformType::STORAGE_BUFFER => gl::SHADER_STORAGE_BUFFER,
+                    crate::renderer_core::lg_uniform::LgUniformType::COMBINED_IMAGE_SAMPLER => gl::SAMPLER_2D,
                 };
                 
                 let buffer = GlBuffer::new(usage).unwrap();
