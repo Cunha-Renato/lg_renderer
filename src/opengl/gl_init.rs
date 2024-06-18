@@ -4,7 +4,7 @@ use glutin::{
     display::{
         GetGlDisplay, 
         GlDisplay
-    }, surface::GlSurface, 
+    }, 
 };
 use glutin_winit::GlWindow;
 use raw_window_handle::HasRawWindowHandle;

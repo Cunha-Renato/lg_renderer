@@ -91,69 +91,14 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
         }       
     }
 
-    pub fn draw<V, T, S>(
-        &mut self, 
-        mesh: (K, &[V], &[u32]), 
-        texture: Option<(K, &T)>,
-        shaders: (K, &[(K, &S)]),
-        ubos: Vec<(K, &impl LgUniform)>,
-    ) -> Result<(), StdError>
-    where 
-        V: GlVertex,
-        T: LgTexture,
-        S: LgShader,
-    {
-        match &mut self.api {
-            RendererAPI::OPEN_GL(api) => {
-                api.draw(
-                    mesh, 
-                    texture,
-                    shaders,
-                    ubos,
-                )?;
-            },
-            RendererAPI::VULKAN(_) => todo!(),
-        }
-        
-        Ok(())
-    }
-    pub fn draw_instanced<V, I, T, S>(
-        &mut self, 
-        mesh: (K, &[V], &[u32]), 
-        textures: &[(K, &T, u32)],
-        shaders: (K, &[(K, &S)]),
-        ubos: Vec<(K, &impl LgUniform)>,
-        instance_data: &[I]
-    ) -> Result<(), StdError>
-    where 
-        V: GlVertex,
-        I: GlVertex,
-        T: LgTexture,
-        S: LgShader,
-    {
-        match &mut self.api {
-            RendererAPI::OPEN_GL(api) => {
-                api.draw_instanced(
-                    mesh, 
-                    textures,
-                    shaders,
-                    ubos,
-                    instance_data,
-                )?;
-            },
-            RendererAPI::VULKAN(_) => todo!(),
-        }
-        
-        Ok(())
-    }
     pub fn begin(&self) -> Result<(), StdError> {
         Ok(match &self.api {
             RendererAPI::OPEN_GL(gl) => gl.begin()?,
             RendererAPI::VULKAN(_) => todo!()
         })
     }
-    pub fn end(&self) -> Result<(), StdError> {
-        match &self.api {
+    pub fn end(&mut self) -> Result<(), StdError> {
+        match &mut self.api {
             RendererAPI::OPEN_GL(gl) => gl.end()?,
             RendererAPI::VULKAN(_) => todo!()
         };
@@ -177,6 +122,65 @@ impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
     pub fn set_uniform_buffer_data(&self, key: K, data: &Vec<u8>) -> Result<(), StdError> {
         match &self.api {
             RendererAPI::OPEN_GL(gl) => gl.set_buffer_data(key, data),
+            RendererAPI::VULKAN(_) => todo!(),
+        }
+    }
+}
+impl<K: Clone + Default + Eq + PartialEq + Hash> LgRenderer<K> {
+    pub fn set_program<S: LgShader>(&mut self, shaders: (K, &[(K, &S)])) -> Result<(), StdError> {
+        match &mut self.api {
+            RendererAPI::OPEN_GL(gl) => gl.set_program(shaders)?,
+            RendererAPI::VULKAN(_) => todo!(),
+        }
+        
+        Ok(())
+    }
+
+    pub fn set_vao(&mut self, id: K) -> Result<(), StdError> {
+        match &mut self.api {
+            RendererAPI::OPEN_GL(gl) => gl.set_vao(id)?,
+            RendererAPI::VULKAN(_) => todo!(),
+        }
+        
+        Ok(())
+    }
+
+    pub fn set_vertices<V: GlVertex>(&mut self, vertices: &[V]) -> Result<(), StdError> {
+        match &mut self.api {
+            RendererAPI::OPEN_GL(gl) => gl.set_vertices(vertices),
+            RendererAPI::VULKAN(_) => todo!(),
+        }
+    }
+
+    pub fn set_indices(&mut self, indices: &[u32]) -> Result<(), StdError> {
+        match &mut self.api {
+            RendererAPI::OPEN_GL(gl) => gl.set_indices(indices),
+            RendererAPI::VULKAN(_) => todo!(),
+        }
+    }
+
+    pub fn set_uniforms(&mut self, ubos: Vec<(K, &impl LgUniform)>) -> Result<(), StdError> {
+        match &mut self.api {
+            RendererAPI::OPEN_GL(gl) => gl.set_uniforms(ubos),
+            RendererAPI::VULKAN(_) => todo!(),
+        }
+    }
+
+    pub fn set_textures<T: LgTexture>(&mut self, textures: &[(K, &T, u32)]) -> Result<(), StdError> {
+        match &mut self.api {
+            RendererAPI::OPEN_GL(gl) => gl.set_textures(textures),
+            RendererAPI::VULKAN(_) => todo!(),
+        }
+    }
+    pub fn draw(&mut self) -> Result<(), StdError> {
+        match &mut self.api {
+            RendererAPI::OPEN_GL(gl) => gl.draw(),
+            RendererAPI::VULKAN(_) => todo!(),
+        }
+    }
+    pub fn draw_instanced<V: GlVertex>(&mut self, instance_data: &[V]) -> Result<(), StdError> {
+        match &mut self.api {
+            RendererAPI::OPEN_GL(gl) => gl.draw_instanced(instance_data),
             RendererAPI::VULKAN(_) => todo!(),
         }
     }

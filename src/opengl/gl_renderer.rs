@@ -3,16 +3,27 @@ use std::{ffi::CString, hash::Hash};
 use glutin::{display::GlDisplay, surface::GlSurface};
 use sllog::error;
 use crate::{gl_check, renderer_core::{lg_shader::LgShader, lg_texture::LgTexture, lg_uniform::LgUniform, lg_vertex::GlVertex, GraphicsApi}, StdError};
-use super::{gl_buffer::GlBuffer, gl_storage::GlStorage, GlError, GlSpecs};
+use super::{gl_buffer::GlBuffer, gl_program::GlProgram, gl_storage::GlStorage, gl_vertex_array::GlVertexArray, GlError, GlSpecs};
 
 struct RendererConfig {
     v_sync: bool,
+}
+
+#[derive(Default)]
+struct DrawData {
+    program: Option<*const GlProgram>, // This is safe since I will not be modifying the storage, and if I do then the pointers will be updated
+    vao: Option<*const GlVertexArray>,
+    vao_set: bool,
+    indices_len: Option<i32>,
+    instance_first_location: u32,
 }
 pub struct GlRenderer<K: Eq + PartialEq + Hash> {
     instance_vbo: GlBuffer,
     storage: GlStorage<K>,
     specs: GlSpecs,
     config: RendererConfig,
+    
+    draw_data: DrawData,
 }
 impl<K: Eq + PartialEq + Hash> GlRenderer<K> {
     pub fn get_specs(&self) -> &GlSpecs {
@@ -32,6 +43,171 @@ impl<K: Eq + PartialEq + Hash> GlRenderer<K> {
         self.config.v_sync
     }
 }
+impl<K: Eq + PartialEq + Hash + Default + Clone> GlRenderer<K> {
+    pub(crate) fn set_program<S: LgShader>(&mut self, shaders: (K, &[(K, &S)])) -> Result<(), GlError> {
+        let program = self.storage.set_program(shaders.0, shaders.1);
+        
+        program.use_prog()?;
+        self.draw_data.program = Some(program as *const GlProgram);
+        
+        Ok(())
+    }
+    
+    pub(crate) fn set_vao(&mut self, id: K) -> Result<(), GlError> {
+        let (present, vao) = self.storage.set_vao(id);
+        vao.bind()?;
+
+        self.draw_data.vao_set = present;
+        self.draw_data.vao = Some(vao as *const GlVertexArray);
+        
+        Ok(())
+    }
+    
+    pub(crate) fn set_vertices<V: GlVertex>(&mut self, vertices: &[V]) -> Result<(), StdError> {
+        if let Some(vao) = &self.draw_data.vao {
+            let vao = unsafe { &**vao };
+            vao.vertex_buffer().bind()?;
+
+            let layout = unsafe { V::gl_info() };
+            self.draw_data.instance_first_location = layout.last().ok_or("Failed to get last location! (OpenGL)")?.0;
+
+            if !self.draw_data.vao_set {
+                let stride = std::mem::size_of::<V>();
+
+                vao.vertex_buffer().set_data(vertices, gl::STATIC_DRAW)?;
+                for info in layout {
+                    vao.set_attribute(info.0, info.1, stride, info.2)?;
+                }
+            }
+            
+            Ok(())
+        } else {
+            Err("Trying to set vertices without having set vao! (GlRenderer)".into())
+        }
+    }
+
+    pub(crate) fn set_indices(&mut self, indices: &[u32]) -> Result<(), StdError> {
+        if let Some(vao) = &self.draw_data.vao {
+            let vao = unsafe { &**vao };
+            vao.index_buffer().bind()?;
+            self.draw_data.indices_len = Some(indices.len() as i32);
+
+            if !self.draw_data.vao_set {
+                vao.index_buffer().set_data(indices, gl::STATIC_DRAW)?;
+            }
+            
+            Ok(())
+        } else {
+            Err("Trying to set indices without having set vertices! (GlRenderer)".into())
+        }
+    }
+    
+    pub(crate) fn set_uniforms(&mut self, ubos: Vec<(K, &impl LgUniform)>) -> Result<(), StdError> {
+        self.storage.set_uniforms(&ubos);
+        
+        for (key, uniform) in ubos {
+            let ubo = self.storage.buffers.get(&key).ok_or("Failed to get UBO! (OpenGL)")?;
+            
+            ubo.bind()?;
+            ubo.bind_base(uniform.binding())?;
+            if uniform.update_data() {
+                ubo.set_data_full(
+                    uniform.data_size(), 
+                    uniform.get_raw_data(), 
+                    gl::STATIC_DRAW
+                )?;
+            }
+            ubo.unbind()?;
+        }
+
+        Ok(())
+    }
+    
+    pub(crate) fn set_textures<T: LgTexture>(&mut self, textures: &[(K, &T, u32)]) -> Result<(), StdError> {
+        for tex in textures {
+            self.storage.set_texture(tex.0.clone(), tex.1, tex.2);
+            self.storage.textures.get(&tex.0).ok_or("Failed to get Texture! (OpenGL)")?.bind(tex.2)?;
+            gl_check!(gl::Uniform1i(tex.2 as i32, tex.2 as i32), "Failed to send Texture to Shader!")?;
+        }
+        
+        Ok(())
+    }
+
+    pub(crate) fn draw(&mut self) -> Result<(), StdError> {
+        if let Some(vao) = &self.draw_data.vao {
+            let vao = unsafe { &**vao };
+            
+            if let Some(indices_len) = self.draw_data.indices_len {
+                gl_check!(gl::DrawElements(
+                    gl::TRIANGLES,
+                    indices_len,
+                    gl::UNSIGNED_INT,
+                    std::ptr::null(),
+                ), "Failed to draw elements!")?;
+                let program = unsafe { &*self.draw_data.program.unwrap() };
+                
+                self.instance_vbo.unbind()?;
+                vao.vertex_buffer().unbind()?;
+                vao.index_buffer().unbind()?;
+                vao.unbind()?;
+                program.unuse()?;
+            } else { return Err("Failed to draw instanced: no indices! (GlRenderer)".into()); }
+            
+            self.draw_data = DrawData::default();
+
+            Ok(())
+        } else {
+            Err("Trying to draw instanced without having set vao! (GlRenderer)".into())
+        }
+    }
+
+    pub(crate) fn draw_instanced<V: GlVertex>(&mut self, instance_data: &[V]) -> Result<(), StdError> {
+        let layout = unsafe { V::gl_info() };
+        let stride = std::mem::size_of::<V>();
+        let instance_count = instance_data.len();
+        let last_location = self.draw_data.instance_first_location;
+        
+        if let Some(vao) = &self.draw_data.vao {
+            let vao = unsafe { &**vao };
+            self.instance_vbo.bind()?;
+            self.instance_vbo.set_data(instance_data, gl::STATIC_DRAW)?;
+            
+            for info in layout {
+                let location = info.0 + last_location + 1;
+                vao.set_attribute(location, info.1, stride, info.2)?;
+                
+                gl_check!(gl::VertexAttribDivisor(location, 1), "Failed to set VertexAttribDivisor!")?;
+            }
+            
+            if let Some(indices_len) = self.draw_data.indices_len {
+                gl_check!(
+                    gl::DrawElementsInstanced(
+                        gl::TRIANGLES,
+                        indices_len,
+                        gl::UNSIGNED_INT,
+                        std::ptr::null(),
+                        instance_count as i32,
+                    ),
+                    "Failed to draw Instanced!"
+                )?;
+                let program = unsafe { &*self.draw_data.program.unwrap() };
+                
+                self.instance_vbo.unbind()?;
+                vao.vertex_buffer().unbind()?;
+                vao.index_buffer().unbind()?;
+                vao.unbind()?;
+                program.unuse()?;
+            } else { return Err("Failed to draw instanced: no indices! (GlRenderer)".into()); }
+            
+            self.draw_data = DrawData::default();
+
+            Ok(())
+        } else {
+            Err("Trying to draw instanced without having set vao! (GlRenderer)".into())
+        }
+        
+    }
+}
 impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
     pub(crate) fn new(specs: GlSpecs) -> Result<Self, GlError> {
         gl::load_with(|symbol| {
@@ -44,187 +220,17 @@ impl<K: Eq + PartialEq + Hash + Default> GlRenderer<K> {
             config: RendererConfig { v_sync: true },
             storage: GlStorage::default(),
             instance_vbo: GlBuffer::new(gl::ARRAY_BUFFER)?,
+            
+            draw_data: DrawData::default(),
         })
     }
 
-    pub(crate) fn draw<V, T, S>(
-        &mut self, 
-        mesh: (K, &[V], &[u32]), 
-        texture: Option<(K, &T)>,
-        shaders: (K, &[(K, &S)]),
-        ubos: Vec<(K, &impl LgUniform)>,
-    ) -> Result<(), StdError>
-    where 
-        K: Clone,
-        V: GlVertex,
-        T: LgTexture,
-        S: LgShader,
-    {
-        let vao_present = self.storage.set_vao(mesh.0.clone());
-        self.storage.set_program(shaders.0.clone(), shaders.1);
-        self.storage.set_uniforms(&ubos);
-        if let Some(texture) = &texture {
-            self.storage.set_texture(texture.0.clone(), texture.1, 0)            
-        }
-
-        let vao = self.storage.vaos.get(&mesh.0).ok_or("Failed to get VAO! (OpenGL)")?;
-        let program = self.storage.programs.get(&shaders.0).ok_or("Failed to get Shader Program! (OpenGL)")?;
-
-        program.use_prog()?;
-        vao.bind()?;
-        vao.index_buffer().bind()?;
-        vao.vertex_buffer().bind()?;
-
-        if !vao_present {
-            vao.index_buffer().set_data(mesh.2, gl::STATIC_DRAW)?;
-
-            let layout = unsafe { V::gl_info() };
-            let stride = std::mem::size_of::<V>();
-
-            vao.vertex_buffer().set_data(mesh.1, gl::STATIC_DRAW)?;
-            for info in layout {
-                vao.set_attribute(info.0, info.1, stride, info.2)?;
-            }
-        }
-
-        for (key, uniform) in ubos {
-            let ubo = self.storage.buffers.get(&key).ok_or("Failed to get UBO! (OpenGL)")?;
-            
-            ubo.bind()?;
-            ubo.bind_base(uniform.binding())?;
-            if uniform.update_data() {
-                ubo.set_data_full(
-                    uniform.data_size(), 
-                    uniform.get_raw_data(), 
-                    gl::STATIC_DRAW
-                )?;
-            }
-            ubo.unbind()?;
-        }
-
-        if let Some(texture) = texture {
-            self.storage.textures.get(&texture.0).ok_or("Failed to get Texture! (OpenGL)")?.bind(0)?;
-        }
-
-        gl_check!(gl::DrawElements(
-            gl::TRIANGLES,
-            mesh.2.len() as i32,
-            gl::UNSIGNED_INT,
-            std::ptr::null(),
-        ), "Failed to draw elements!")?;
-
-        vao.vertex_buffer().unbind()?;        
-        vao.index_buffer().unbind()?;
-        vao.unbind()?;
-        program.unuse()?;
-
-        Ok(())
-    }
-    pub(crate) fn draw_instanced<V, I, T, S>(
-        &mut self, 
-        mesh: (K, &[V], &[u32]), 
-        textures: &[(K, &T, u32)],
-        shaders: (K, &[(K, &S)]),
-        ubos: Vec<(K, &impl LgUniform)>,
-        
-        instance_data: &[I],
-    ) -> Result<(), StdError>
-    where 
-        K: Clone,
-        V: GlVertex,
-        I: GlVertex,
-        T: LgTexture,
-        S: LgShader,
-    {
-        let vao_present = self.storage.set_vao(mesh.0.clone());
-        self.storage.set_program(shaders.0.clone(), shaders.1);
-        self.storage.set_uniforms(&ubos);
-        
-        for tex in textures {
-            self.storage.set_texture(tex.0.clone(), tex.1, tex.2);
-        }
-
-        let vao = self.storage.vaos.get(&mesh.0).ok_or("Failed to get VAO! (OpenGL)")?;
-        let program = self.storage.programs.get(&shaders.0).ok_or("Failed to get Shader Program! (OpenGL)")?;
-
-        program.use_prog()?;
-        vao.bind()?;
-
-        let layout = unsafe { I::gl_info() };
-        let stride = std::mem::size_of::<I>();
-        let instance_count = instance_data.len();
-
-        self.instance_vbo.bind()?;
-        self.instance_vbo.set_data(instance_data, gl::STATIC_DRAW)?;
-
-        let last_location = unsafe { V::gl_info().last().ok_or("Failed to get last location! (OpenGL)")?.0 };
-        for info in layout {
-            let location = info.0 + last_location + 1;
-            vao.set_attribute(location, info.1, stride, info.2)?;
-            
-            gl_check!(gl::VertexAttribDivisor(location, 1), "Failed to set VertexAttribDivisor!")?;
-        }
-
-        vao.index_buffer().bind()?;
-        vao.vertex_buffer().bind()?;
-
-        if !vao_present {
-            vao.index_buffer().set_data(mesh.2, gl::STATIC_DRAW)?;
-
-            let layout = unsafe { V::gl_info() };
-            let stride = std::mem::size_of::<V>();
-
-            vao.vertex_buffer().set_data(mesh.1, gl::STATIC_DRAW)?;
-            for info in layout {
-                vao.set_attribute(info.0, info.1, stride, info.2)?;
-            }
-        }
-
-        for (key, uniform) in ubos {
-            let ubo = self.storage.buffers.get(&key).ok_or("Failed to get UBO! (OpenGL)")?;
-            
-            ubo.bind()?;
-            ubo.bind_base(uniform.binding())?;
-            if uniform.update_data() {
-                ubo.set_data_full(
-                    uniform.data_size(), 
-                    uniform.get_raw_data(), 
-                    gl::STATIC_DRAW
-                )?;
-            }
-            ubo.unbind()?;
-        }
-
-        for tex in textures {
-            self.storage.textures.get(&tex.0).ok_or("Failed to get Texture! (OpenGL)")?.bind(tex.2)?;
-            gl_check!(gl::Uniform1i(tex.2 as i32, tex.2 as i32), "Failed to send Texture to Shader!")?;
-        }
-
-        gl_check!(
-            gl::DrawElementsInstanced(
-                gl::TRIANGLES,
-                mesh.2.len() as i32,
-                gl::UNSIGNED_INT,
-                std::ptr::null(),
-                instance_count as i32,
-            ),
-            "Failed to draw Instanced!"
-        )?;
-        
-        self.instance_vbo.unbind()?;
-        vao.vertex_buffer().unbind()?;
-        vao.index_buffer().unbind()?;
-        vao.unbind()?;
-        program.unuse()?;
-
-        Ok(())
-    }
     pub(crate) fn begin(&self) -> Result<(), GlError> {
         gl_check!(gl::ClearColor(0.5, 0.1, 0.2, 1.0), "Failed to ClearColor!")?;
         gl_check!(gl::ClearDepth(1.0), "Failed to ClearDepth!")?;
         gl_check!(gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT), "Failed to Clear!")
     }
-    pub(crate) fn end(&self) -> Result<(), StdError>{
+    pub(crate) fn end(&mut self) -> Result<(), StdError>{
         self.specs.gl_surface.swap_buffers(&self.specs.gl_context)?;
         
         Ok(())

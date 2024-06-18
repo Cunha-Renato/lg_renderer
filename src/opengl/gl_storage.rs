@@ -12,16 +12,16 @@ pub(crate) struct GlStorage<K: Eq + PartialEq + Hash> {
     pub(crate) programs: HashMap<K, GlProgram>,
 }
 impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
-    pub(crate) fn set_vao(&mut self, key: K) -> bool {
+    pub(crate) fn set_vao(&mut self, key: K) -> (bool, &mut GlVertexArray) {
         let mut present = true;
-        self.vaos.entry(key).or_insert_with(|| {
+        let vao = self.vaos.entry(key).or_insert_with(|| {
             present = false;
             GlVertexArray::new().unwrap()
         });
         
-        present
+        (present, vao)
     }
-    pub(crate) fn set_program<S: LgShader>(&mut self, key: K, shaders: &[(K, &S)]) {
+    pub(crate) fn set_program<S: LgShader>(&mut self, key: K, shaders: &[(K, &S)]) -> &mut GlProgram {
         let shaders = self.set_shaders(shaders);
 
         self.programs.entry(key).or_insert_with(|| {
@@ -30,7 +30,7 @@ impl<K: Clone + Eq + PartialEq + Hash> GlStorage<K> {
             program.link().unwrap();
             
             program
-        });
+        })
     }
     pub(crate) fn set_texture<T: LgTexture>(&mut self, key: K, texture: &T, location: u32) {
         self.textures.entry(key).or_insert_with(|| {
